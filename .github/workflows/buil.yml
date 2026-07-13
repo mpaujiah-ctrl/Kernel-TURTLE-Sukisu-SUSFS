@@ -1,4 +1,4 @@
-name: Kernel InfiniR A15 - SukiSU-Ultra + SUSFS (susfs-main)
+name: Kernel InfiniR A15 - SukiSU-Ultra + SUSFS (susfs_new)
 
 on:
   workflow_dispatch:
@@ -26,10 +26,10 @@ jobs:
           echo "=== Sisa referensi kernelsu di Makefile/Kconfig (harus kosong) ==="
           grep -i "kernelsu" drivers/Makefile drivers/Kconfig || echo "bersih"
 
-      - name: Integrasi SukiSU-Ultra via setup.sh (jalur susfs-main, SUSFS udah bundled)
+      - name: Integrasi SukiSU-Ultra via setup.sh (jalur susfs_new, SUSFS udah bundled)
         run: |
           cd kernel
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs_new
           echo "=== Cek symlink & Makefile/Kconfig hasil setup.sh ==="
           ls -la drivers/kernelsu || ls -la common/drivers/kernelsu
           grep "kernelsu" drivers/Makefile || grep "kernelsu" common/drivers/Makefile
@@ -44,6 +44,14 @@ jobs:
           grep -q "^CONFIG_KALLSYMS=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/cepheus_defconfig
           grep -q "^CONFIG_KALLSYMS_ALL=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_KALLSYMS" arch/arm64/configs/cepheus_defconfig
+
+      - name: Enable CONFIG_KSU_MANUAL_HOOK wajib buat non-GKI (default hook method di GKI itu kprobe, di non-GKI harus manual)
+        run: |
+          cd kernel
+          grep -q "^CONFIG_KSU=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU=y" >> arch/arm64/configs/cepheus_defconfig
+          grep -q "^CONFIG_KSU_MANUAL_HOOK=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/arm64/configs/cepheus_defconfig
+          echo "=== Verifikasi ==="
+          grep "CONFIG_KSU" arch/arm64/configs/cepheus_defconfig
 
       - name: (Opsional) Enable CONFIG_KPM buat fitur KPM SukiSU-Ultra
         run: |
