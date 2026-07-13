@@ -13,6 +13,19 @@ jobs:
       - name: Clone kernel source (raystef66, branch 15.0)
         run: git clone --depth=1 -b 15.0 https://github.com/raystef66/kernel_xiaomi_cepheus kernel
 
+      - name: Bersihin KSUN stock bawaan raystef66 (tree ini udah "kernelSU ready" dari awal)
+        run: |
+          cd kernel
+          echo "=== Cek dulu apa yang ada di drivers/kernelsu sebelum dihapus ==="
+          ls -la drivers/kernelsu 2>/dev/null || echo "drivers/kernelsu gak ketemu langsung, cek KernelSU-Next/ juga:"
+          ls -la KernelSU-Next 2>/dev/null
+          rm -rf drivers/kernelsu KernelSU-Next
+          # Bersihin juga referensi lama di Makefile & Kconfig biar gak dobel entry
+          sed -i '/kernelsu/d' drivers/Makefile
+          sed -i '/drivers\/kernelsu\/Kconfig/d' drivers/Kconfig
+          echo "=== Sisa referensi kernelsu di Makefile/Kconfig (harus kosong) ==="
+          grep -i "kernelsu" drivers/Makefile drivers/Kconfig || echo "bersih"
+
       - name: Integrasi SukiSU-Ultra via setup.sh (jalur susfs-main, SUSFS udah bundled)
         run: |
           cd kernel
