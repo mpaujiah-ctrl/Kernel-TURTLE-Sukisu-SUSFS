@@ -1,1 +1,126 @@
-tes
+name: Kernel InfiniR A15 - SukiSU-Ultra + SUSFS (susfs-main)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Clone kernel source (raystef66, branch 15.0)
+        run: git clone --depth=1 -b 15.0 https://github.com/raystef66/kernel_xiaomi_cepheus kernel
+
+      - name: Integrasi SukiSU-Ultra via setup.sh (jalur susfs-main, SUSFS udah bundled)
+        run: |
+          cd kernel
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+          echo "=== Cek symlink & Makefile/Kconfig hasil setup.sh ==="
+          ls -la drivers/kernelsu || ls -la common/drivers/kernelsu
+          grep "kernelsu" drivers/Makefile || grep "kernelsu" common/drivers/Makefile
+
+      # CATATAN: setup.sh nge-detect folder driver otomatis (common/drivers ATAU drivers).
+      # Kalau step di atas gagal nemu salah satu path, cek dulu struktur kernel/ buat pastiin
+      # tree raystef66 pakai drivers/ langsung (bukan common/drivers/ ala kernel_platform baru).
+
+      - name: Enable CONFIG_KALLSYMS wajib buat non-GKI
+        run: |
+          cd kernel
+          grep -q "^CONFIG_KALLSYMS=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/cepheus_defconfig
+          grep -q "^CONFIG_KALLSYMS_ALL=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/cepheus_defconfig
+          grep "CONFIG_KALLSYMS" arch/arm64/configs/cepheus_defconfig
+
+      - name: (Opsional) Enable CONFIG_KPM buat fitur KPM SukiSU-Ultra
+        run: |
+          cd kernel
+          grep -q "^CONFIG_KPM=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KPM=y" >> arch/arm64/configs/cepheus_defconfig
+          grep "CONFIG_KPM" arch/arm64/configs/cepheus_defconfig
+
+      - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
+        run: |
+          cd kernel
+          echo "=== Cek dulu apa set_memory.h udah ada & isinya cukup ==="
+          find . -path "*/include/linux/set_memory.h" 2>/dev/null
+          # TITIK RAWAN: kalau file di atas gak ketemu atau isinya belum punya fungsi
+          # yang SukiSU-Ultra butuhin, tarik versi 4.19 manual, contoh:
+          # curl -sL "https://raw.githubusercontent.com/torvalds/linux/v4.19/include/linux/set_memory.h" -o include/linux/set_memory.h
+          # JANGAN auto-overwrite dulu sebelum liat log build gagal di step Build kernel,
+          # biar tau persis fungsi apa yang undefined baru ditambal presisi.
+          echo "Placeholder check done - lihat log build kernel dulu buat tau perlu backport apa nggak"
+
+      - name: Update defconfig localversion
+        run: |
+          cd kernel
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-TURTLE-SukiSU_Ultra+SUSFS"/' arch/arm64/configs/cepheus_defconfig
+          grep "CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
+
+      - name: Install toolchain (clang + GNU cross-compiler)
+        run: |
+          sudo apt update
+          sudo apt install -y clang lld llvm bc bison flex libssl-dev libelf-dev build-essential
+          sudo apt install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Clone AnyKernel3
+        run: git clone --depth=1 https://github.com/osm0sis/AnyKernel3
+
+      - name: Fix yamltree.c (stub kosong, solusi dari TURTLE dulu - kemungkinan masih perlu)
+        run: |
+          cd kernel
+          cat > scripts/dtc/yamltree.c << 'CEOF'
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          struct dt_info;
+
+          void dt_to_yaml(FILE *outf, struct dt_info *dti) {}
+          CEOF
+          echo "yamltree.c replaced with stub"
+
+      - name: Build kernel
+        run: |
+          cd kernel
+          export ARCH=arm64
+          export LLVM=1
+          export CC=clang
+          export AR=llvm-ar
+          export LD=ld.lld
+          export NM=llvm-nm
+          export OBJCOPY=llvm-objcopy
+          export OBJDUMP=llvm-objdump
+          export STRIP=llvm-strip
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export USE_CCACHE=1
+
+          make O=out ARCH=arm64 cepheus_defconfig
+
+          make ARCH=arm64 \
+               O=out \
+               CC=clang \
+               AR=llvm-ar \
+               LD=ld.lld \
+               NM=llvm-nm \
+               OBJCOPY=llvm-objcopy \
+               OBJDUMP=llvm-objdump \
+               STRIP=llvm-strip \
+               -j$(nproc --all) Image.gz-dtb
+
+          echo "=== Verify output ==="
+          ls out/arch/arm64/boot/Image.gz-dtb
+          ls out/arch/arm64/boot/Image
+
+      - name: Pack AnyKernel3
+        run: |
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          cp kernel/out/arch/arm64/boot/Image kernel-pure.img
+          cd AnyKernel3 && zip -r9 ../TURTLE_cepheus_SukiSUUltra_SUSFS.zip * -x README
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TURTLE-cepheus-SukiSUUltra-SUSFS
+          path: |
+            TURTLE_cepheus_SukiSUUltra_SUSFS.zip
+            kernel/out/arch/arm64/boot/Image.gz-dtb
+            kernel-pure.img
