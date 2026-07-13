@@ -29,7 +29,7 @@ jobs:
       - name: Integrasi SukiSU-Ultra via setup.sh (jalur susfs-main, SUSFS udah bundled)
         run: |
           cd kernel
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs_new
           echo "=== Cek symlink & Makefile/Kconfig hasil setup.sh ==="
           ls -la drivers/kernelsu || ls -la common/drivers/kernelsu
           grep "kernelsu" drivers/Makefile || grep "kernelsu" common/drivers/Makefile
