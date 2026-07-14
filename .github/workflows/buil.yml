@@ -141,17 +141,6 @@ jobs:
       # nama simbolnya beda di source SukiSU-Ultra - perlu dicek langsung di
       # KernelSU-Next/KernelSU/kernel/*.c hasil clone setup.sh buat nama pastinya.
 
-        run: |
-          cd kernel
-          echo "=== Cek dulu apa set_memory.h udah ada & isinya cukup ==="
-          find . -path "*/include/linux/set_memory.h" 2>/dev/null
-          # TITIK RAWAN: kalau file di atas gak ketemu atau isinya belum punya fungsi
-          # yang SukiSU-Ultra butuhin, tarik versi 4.19 manual, contoh:
-          # curl -sL "https://raw.githubusercontent.com/torvalds/linux/v4.19/include/linux/set_memory.h" -o include/linux/set_memory.h
-          # JANGAN auto-overwrite dulu sebelum liat log build gagal di step Build kernel,
-          # biar tau persis fungsi apa yang undefined baru ditambal presisi.
-          echo "Placeholder check done - lihat log build kernel dulu buat tau perlu backport apa nggak"
-
       - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
         run: |
           cd kernel
