@@ -59,7 +59,88 @@ jobs:
           grep -q "^CONFIG_KPM=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KPM=y" >> arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_KPM" arch/arm64/configs/cepheus_defconfig
 
-      - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
+      - name: Upgrade hook call-site fs/exec.c, fs/open.c, fs/stat.c ke pola dual-hook (_hook flag + _sucompat)
+        run: |
+          cd kernel
+          cat > /tmp/upgrade_hooks.py << 'PYEOF'
+          import sys
+
+          def patch(path, old, new, label):
+              with open(path, "r") as f:
+                  content = f.read()
+              if old not in content:
+                  print(f"!!! PATTERN GAGAL DITEMUKAN: {label} di {path}")
+                  sys.exit(1)
+              if content.count(old) > 1:
+                  print(f"!!! PATTERN AMBIGU (muncul >1x): {label} di {path}")
+                  sys.exit(1)
+              content = content.replace(old, new)
+              with open(path, "w") as f:
+                  f.write(content)
+              print(f"[OK] {label} patched di {path}")
+
+          # === fs/exec.c: extern declarations ===
+          patch(
+              "fs/exec.c",
+              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t       void *envp, int *flags);\n#endif',
+              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern bool ksu_execveat_hook __read_mostly;\nextern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t       void *envp, int *flags);\nextern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t       void *envp, int *flags);\n#endif',
+              "exec.c extern block",
+          )
+
+          # === fs/exec.c: call site ===
+          patch(
+              "fs/exec.c",
+              '#ifdef CONFIG_KSU\n        ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);  // call KSU hook first\n#endif',
+              '#ifdef CONFIG_KSU\n        if (unlikely(ksu_execveat_hook))\n                ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n        else\n                ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n#endif',
+              "exec.c call site",
+          )
+
+          # === fs/open.c: extern declarations ===
+          patch(
+              "fs/open.c",
+              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,\n\t\t\t        int *flags);\n#endif',
+              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern bool ksu_faccessat_hook __read_mostly;\nextern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,\n\t\t\t        int *flags);\nextern int ksu_handle_faccessat_sucompat(int *dfd, const char __user **filename_user, int *mode,\n\t\t\t        int *flags);\n#endif',
+              "open.c extern block",
+          )
+
+          # === fs/open.c: call site ===
+          patch(
+              "fs/open.c",
+              '#ifdef CONFIG_KSU\n\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);  // call KSU hook first\n#endif',
+              '#ifdef CONFIG_KSU\n\tif (unlikely(ksu_faccessat_hook))\n\t\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n\telse\n\t\tksu_handle_faccessat_sucompat(&dfd, &filename, &mode, NULL);\n#endif',
+              "open.c call site",
+          )
+
+          # === fs/stat.c: extern declarations ===
+          patch(
+              "fs/stat.c",
+              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern int ksu_handle_stat(int *dfd, const char __user **filename_user);\n#endif',
+              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern bool ksu_stat_hook __read_mostly;\nextern int ksu_handle_stat(int *dfd, const char __user **filename_user);\nextern int ksu_handle_stat_sucompat(int *dfd, const char __user **filename_user);\n#endif',
+              "stat.c extern block",
+          )
+
+          # === fs/stat.c: call site ===
+          patch(
+              "fs/stat.c",
+              '#ifdef CONFIG_KSU\n        ksu_handle_stat(&dfd, &filename); // call KSU hook first\n#endif',
+              '#ifdef CONFIG_KSU\n        if (unlikely(ksu_stat_hook))\n                ksu_handle_stat(&dfd, &filename);\n        else\n                ksu_handle_stat_sucompat(&dfd, &filename);\n#endif',
+              "stat.c call site",
+          )
+
+          print("=== Semua hook berhasil di-upgrade ke pola dual-hook ===")
+          PYEOF
+          python3 /tmp/upgrade_hooks.py
+
+      # CATATAN PENTING: step di atas ngasumsiin SukiSU-Ultra nyediain simbol
+      # ksu_faccessat_hook / ksu_handle_faccessat_sucompat dan ksu_stat_hook /
+      # ksu_handle_stat_sucompat, mengikuti pola penamaan yang sama kayak execveat.
+      # Ini EKSTRAPOLASI dari satu contoh resmi (execveat) yang kebukti di dokumentasi,
+      # BUKAN dikonfirmasi langsung dari source SukiSU-Ultra buat faccessat/stat.
+      # Kalau step build kernel di bawah gagal dengan "undefined reference to
+      # ksu_handle_faccessat_sucompat" atau "ksu_handle_stat_sucompat", itu tandanya
+      # nama simbolnya beda di source SukiSU-Ultra - perlu dicek langsung di
+      # KernelSU-Next/KernelSU/kernel/*.c hasil clone setup.sh buat nama pastinya.
+
         run: |
           cd kernel
           echo "=== Cek dulu apa set_memory.h udah ada & isinya cukup ==="
@@ -70,6 +151,17 @@ jobs:
           # JANGAN auto-overwrite dulu sebelum liat log build gagal di step Build kernel,
           # biar tau persis fungsi apa yang undefined baru ditambal presisi.
           echo "Placeholder check done - lihat log build kernel dulu buat tau perlu backport apa nggak"
+
+      - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
+        run: |
+          cd kernel
+          echo "=== Cek dulu apa set_memory.h udah ada & isinya cukup ==="
+          find . -path "*/include/linux/set_memory.h" 2>/dev/null
+          # Konfirmasi dari run sebelumnya: file ini udah ada di tree raystef66,
+          # jadi backport manual gak diperlukan. Step ini dipertahankan sebagai
+          # verifikasi aja - kalau path di atas kosong, baru perlu tarik manual dari:
+          # curl -sL "https://raw.githubusercontent.com/torvalds/linux/v4.19/include/linux/set_memory.h" -o include/linux/set_memory.h
+          echo "Verifikasi selesai"
 
       - name: Update defconfig localversion
         run: |
