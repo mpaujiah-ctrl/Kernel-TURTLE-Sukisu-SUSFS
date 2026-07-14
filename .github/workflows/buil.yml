@@ -1,4 +1,4 @@
-name: Kernel InfiniR A15 - SukiSU-Ultra builtin (LSM hook) + SUSFS manual
+name: Kernel InfiniR A15 - SukiSU-Ultra susfs-main (built-in SUSFS, no manual patch)
 
 on:
   workflow_dispatch:
@@ -25,13 +25,19 @@ jobs:
           echo "=== Sisa referensi kernelsu di Makefile/Kconfig (harus kosong) ==="
           grep -i "kernelsu" drivers/Makefile drivers/Kconfig || echo "bersih"
 
-      - name: Integrasi SukiSU-Ultra via setup.sh (jalur builtin, LSM hook - compatible kernel lama)
+      - name: Integrasi SukiSU-Ultra via setup.sh (jalur susfs-main, SUSFS udah built-in - GAK perlu manual sync)
         run: |
           cd kernel
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
           echo "=== Cek symlink & Makefile/Kconfig hasil setup.sh ==="
           ls -la drivers/kernelsu || ls -la common/drivers/kernelsu
           grep "kernelsu" drivers/Makefile || grep "kernelsu" common/drivers/Makefile
+          echo "=== Cek apakah susfs.c/susfs.h ikut ke-drop otomatis oleh branch ini ==="
+          find . -iname "susfs*" 2>/dev/null
+          # CATATAN: branch susfs-main katanya sudah bundling SUSFS sendiri,
+          # jadi TIDAK ada step "integrasi SUSFS manual" dari raystef66/KSUN
+          # di workflow ini lagi (itu penyebab error kemarin - mismatch source
+          # antara SukiSU-Ultra builtin dan susfs versi KernelSU-Next).
 
       - name: Enable CONFIG_KALLSYMS wajib buat non-GKI
         run: |
@@ -40,64 +46,32 @@ jobs:
           grep -q "^CONFIG_KALLSYMS_ALL=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_KALLSYMS" arch/arm64/configs/cepheus_defconfig
 
-      - name: Enable CONFIG_KSU (branch builtin gak depends on KPROBES, jadi cukup ini doang)
+      - name: Enable CONFIG_KSU
         run: |
           cd kernel
           grep -q "^CONFIG_KSU=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU=y" >> arch/arm64/configs/cepheus_defconfig
           echo "=== Verifikasi ==="
           grep "^CONFIG_KSU=y" arch/arm64/configs/cepheus_defconfig
-          # CATATAN: branch builtin pakai kernel/hook/lsm_hook.c (LSM hook), bukan
-          # syscall table hook berbasis regs kayak susfs_new. Kconfig-nya gak
-          # nyantumin "depends on KPROBES && EXT4_FS", jadi CONFIG_KPROBES
-          # sengaja TIDAK dipaksa nyala di sini - biar gak mengulang risiko
-          # kprobe-reliability yang pernah bermasalah di device ini dulu.
 
-      - name: (Tetap dimatiin) CONFIG_KPM - folder kernel/kpm ada juga di branch ini, kemungkinan besar access_ok error yang sama
+      - name: Cek & enable Kconfig SUSFS bawaan branch susfs-main (kalau ada opsinya di Kconfig)
+        run: |
+          cd kernel
+          echo "=== Cari opsi Kconfig terkait SUSFS yang disediakan branch ini ==="
+          grep -rn "KSU_SUSFS" drivers/kernelsu/Kconfig 2>/dev/null || grep -rn "KSU_SUSFS" common/drivers/kernelsu/Kconfig 2>/dev/null || echo "Kconfig SUSFS gak ketemu di path standar, cek manual kalau perlu"
+          grep -q "^CONFIG_KSU_SUSFS=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU_SUSFS=y" >> arch/arm64/configs/cepheus_defconfig
+          echo "=== Verifikasi ==="
+          grep "CONFIG_KSU_SUSFS" arch/arm64/configs/cepheus_defconfig
+          # CATATAN: kalau branch susfs-main pakai skema sub-option per fitur
+          # (SUS_PATH, SUS_MOUNT, dst - beda sama builtin kemarin), tambahin
+          # baris CONFIG_KSU_SUSFS_XXX=y di sini SETELAH ngecek nama Kconfig
+          # asli lewat grep di atas. Jangan tebak nama macro kayak kemarin.
+
+      - name: (Tetap dimatiin) CONFIG_KPM - kemungkinan besar access_ok error yang sama
         run: |
           cd kernel
           sed -i '/^CONFIG_KPM=y/d' arch/arm64/configs/cepheus_defconfig
           echo "=== Verifikasi CONFIG_KPM gak aktif ==="
           grep "CONFIG_KPM" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KPM tidak di-set (default n) - aman"
-
-      - name: Integrasi SUSFS manual v2.1.0 (branch builtin gak bundling SUSFS, sync dari raystef66/16.0-ksun kayak workflow KSUN)
-        run: |
-          cd kernel
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/susfs.c" -o fs/susfs.c
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/include/linux/susfs.h" -o include/linux/susfs.h
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/include/linux/susfs_def.h" -o include/linux/susfs_def.h
-          grep "SUSFS_VERSION" include/linux/susfs.h
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/stat.c" -o fs/stat.c
-          grep -c "susfs" fs/stat.c
-          curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/proc/task_mmu.c" -o fs/proc/task_mmu.c
-          grep -c "susfs" fs/proc/task_mmu.c
-          # FIX MENYELURUH: semua fitur di susfs.c/susfs.h dibungkus per-fitur
-          # #ifdef CONFIG_KSU_SUSFS_XXX, tapi branch builtin SukiSU-Ultra cuma
-          # nyediain master switch KSU_SUSFS di Kconfig, gak ada sub-option
-          # individual (SUS_PATH, SUS_MOUNT, SUS_KSTAT, TRY_UMOUNT, dst) - semua
-          # symbol itu gak terdaftar sama sekali, jadi "CONFIG_X=y" di defconfig
-          # percuma. Solusi: paksa define semua macro ini langsung di susfs.h,
-          # supaya SEMUA ifdef aktif tanpa gantung ke Kconfig, di semua file
-          # (susfs.c, susfs.h, stat.c, task_mmu.c) sekaligus - bukan tambal satu-satu.
-          echo "aW1wb3J0IHN5cwpwYXRoID0gImluY2x1ZGUvbGludXgvc3VzZnMuaCIKd2l0aCBvcGVuKHBhdGgsICJyIikgYXMgZjoKICAgIGNvbnRlbnQgPSBmLnJlYWQoKQoKbWFya2VyID0gIiNkZWZpbmUgS1NVX1NVU0ZTX0giCmlmIG1hcmtlciBub3QgaW4gY29udGVudDoKICAgIHByaW50KCIhISEgTWFya2VyIEtTVV9TVVNGU19IIGdhayBrZXRlbXUgZGkgc3VzZnMuaCIpCiAgICBzeXMuZXhpdCgxKQoKZGVmaW5lcyA9ICJcbiIuam9pbihbCiAgICAiI2RlZmluZSBDT05GSUdfS1NVX1NVU0ZTX1NVU19QQVRIIiwKICAgICIjZGVmaW5lIENPTkZJR19LU1VfU1VTRlNfU1VTX01PVU5UIiwKICAgICIjZGVmaW5lIENPTkZJR19LU1VfU1VTRlNfU1VTX0tTVEFUIiwKICAgICIjZGVmaW5lIENPTkZJR19LU1VfU1VTRlNfVFJZX1VNT1VOVCIsCiAgICAiI2RlZmluZSBDT05GSUdfS1NVX1NVU0ZTX1NQT09GX1VOQU1FIiwKICAgICIjZGVmaW5lIENPTkZJR19LU1VfU1VTRlNfRU5BQkxFX0xPRyIsCiAgICAiI2RlZmluZSBDT05GSUdfS1NVX1NVU0ZTX0hJREVfS1NVX1NVU0ZTX1NZTUJPTFMiLAogICAgIiNkZWZpbmUgQ09ORklHX0tTVV9TVVNGU19TUE9PRl9DTURMSU5FX09SX0JPT1RDT05GSUciLAogICAgIiNkZWZpbmUgQ09ORklHX0tTVV9TVVNGU19PUEVOX1JFRElSRUNUIiwKICAgICIjZGVmaW5lIENPTkZJR19LU1VfU1VTRlNfU1VTX01BUCIsCl0pCgpjb250ZW50ID0gY29udGVudC5yZXBsYWNlKG1hcmtlciwgbWFya2VyICsgIlxuIiArIGRlZmluZXMsIDEpCgp3aXRoIG9wZW4ocGF0aCwgInciKSBhcyBmOgogICAgZi53cml0ZShjb250ZW50KQpwcmludCgiW09LXSBTZW11YSBtYWNybyBDT05GSUdfS1NVX1NVU0ZTXyogYmVyaGFzaWwgZGktZGVmaW5lIHBha3NhIGRpIHN1c2ZzLmgiKQo=" | base64 -d | python3
-          echo "=== Verifikasi define berhasil masuk ==="
-          grep "^#define CONFIG_KSU_SUSFS" include/linux/susfs.h
-          # Fix known bug: susfs_try_umount_all() manggil susfs_try_umount() yang
-          # dibungkus #ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT. Symbol Kconfig ini TIDAK
-          # terdaftar sama sekali di branch builtin (SukiSU-Ultra gak bundling
-          # sub-option SUSFS individual, cuma ada master switch KSU_SUSFS), jadi
-          # nyalain "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" di defconfig percuma - bakal
-          # di-drop diam-diam sama Kconfig merge. Solusi: hapus langsung guard
-          # ifdef/endif-nya biar fungsi selalu ke-compile, gak gantung Kconfig.
-          echo "aW1wb3J0IHN5cwpwYXRoID0gImZzL3N1c2ZzLmMiCndpdGggb3BlbihwYXRoLCAiciIpIGFzIGY6CiAgICBjb250ZW50ID0gZi5yZWFkKCkKCm9sZF9zdGFydCA9ICIvKiB0cnlfdW1vdW50ICovXG4jaWZkZWYgQ09ORklHX0tTVV9TVVNGU19UUllfVU1PVU5UXG5zdGF0aWMgREVGSU5FX1NQSU5MT0NLKHN1c2ZzX3NwaW5fbG9ja190cnlfdW1vdW50KTsiCm5ld19zdGFydCA9ICIvKiB0cnlfdW1vdW50ICovXG5zdGF0aWMgREVGSU5FX1NQSU5MT0NLKHN1c2ZzX3NwaW5fbG9ja190cnlfdW1vdW50KTsiCmlmIG9sZF9zdGFydCBub3QgaW4gY29udGVudDoKICAgIHByaW50KCIhISEgUGF0dGVybiBhd2FsIHRyeV91bW91bnQgZ2FrIGtldGVtdSwgY2VrIHVsYW5nIGlzaSBzdXNmcy5jIikKICAgIHN5cy5leGl0KDEpCmNvbnRlbnQgPSBjb250ZW50LnJlcGxhY2Uob2xkX3N0YXJ0LCBuZXdfc3RhcnQpCgpvbGRfZW5kID0gIn1cbiNlbmRpZiAvLyAjaWZkZWYgQ09ORklHX0tTVV9TVVNGU19UUllfVU1PVU5UXG5cbi8qIHNwb29mX3VuYW1lICovIgpuZXdfZW5kID0gIn1cblxuLyogc3Bvb2ZfdW5hbWUgKi8iCmlmIG9sZF9lbmQgbm90IGluIGNvbnRlbnQ6CiAgICBwcmludCgiISEhIFBhdHRlcm4gYWtoaXIgdHJ5X3Vtb3VudCBnYWsga2V0ZW11LCBjZWsgdWxhbmcgaXNpIHN1c2ZzLmMiKQogICAgc3lzLmV4aXQoMSkKY29udGVudCA9IGNvbnRlbnQucmVwbGFjZShvbGRfZW5kLCBuZXdfZW5kKQoKd2l0aCBvcGVuKHBhdGgsICJ3IikgYXMgZjoKICAgIGYud3JpdGUoY29udGVudCkKcHJpbnQoIltPS10gR3VhcmQgaWZkZWYvZW5kaWYgQ09ORklHX0tTVV9TVVNGU19UUllfVU1PVU5UIGJlcmhhc2lsIGRpaGFwdXMiKQo=" | base64 -d | python3
-          echo "=== Verifikasi susfs_try_umount sekarang unconditional ==="
-          grep -B2 -A1 "^void susfs_try_umount(uid_t uid)" fs/susfs.c
-          # CATATAN RISIKO: file stat.c & task_mmu.c ini disinkronkan dari branch
-          # KSUN raystef66 (16.0-ksun), yang hook call-site-nya ditulis buat
-          # KernelSU-Next, BUKAN buat SukiSU-Ultra builtin (LSM hook). Kalau step
-          # "Build kernel" di bawah gagal linking dengan undefined reference ke
-          # ksu_handle_stat/ksu_handle_faccessat dkk, itu tandanya call-site di
-          # file ini perlu disesuaikan manual ke fungsi yang disediakan SukiSU-Ultra
-          # branch builtin (bukan diasumsikan otomatis cocok).
 
       - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
         run: |
@@ -109,7 +83,7 @@ jobs:
       - name: Update defconfig localversion
         run: |
           cd kernel
-          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-TURTLE-SukiSU_Ultra_Builtin+SUSFS"/' arch/arm64/configs/cepheus_defconfig
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-TURTLE-SukiSU_Ultra_SUSFSMain"/' arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_LOCALVERSION" arch/arm64/configs/cepheus_defconfig
 
       - name: Install toolchain (clang + GNU cross-compiler)
@@ -170,13 +144,13 @@ jobs:
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cp kernel/out/arch/arm64/boot/Image kernel-pure.img
-          cd AnyKernel3 && zip -r9 ../TURTLE_cepheus_SukiSUUltra_Builtin_SUSFS.zip * -x README
+          cd AnyKernel3 && zip -r9 ../TURTLE_cepheus_SukiSUUltra_SUSFSMain.zip * -x README
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TURTLE-cepheus-SukiSUUltra-Builtin-SUSFS
+          name: TURTLE-cepheus-SukiSUUltra-SUSFSMain
           path: |
-            TURTLE_cepheus_SukiSUUltra_Builtin_SUSFS.zip
+            TURTLE_cepheus_SukiSUUltra_SUSFSMain.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel-pure.img
