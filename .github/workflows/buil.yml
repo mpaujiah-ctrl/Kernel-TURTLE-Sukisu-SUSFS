@@ -61,12 +61,17 @@ jobs:
           # itu sinyal kprobe emang broken - JANGAN flash permanen dulu, test pakai
           # fastboot boot.
 
-      - name: (Opsional) Enable CONFIG_KPM buat fitur KPM SukiSU-Ultra
+      - name: (Dimatiin sementara) CONFIG_KPM - bikin compile error di kpm/compact.c (macro access_ok versi baru vs kernel 4.14 lama)
         run: |
           cd kernel
-          grep -q "^CONFIG_KPM=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KPM=y" >> arch/arm64/configs/cepheus_defconfig
-          grep "CONFIG_KPM" arch/arm64/configs/cepheus_defconfig
-      
+          # CONFIG_KPM sengaja TIDAK diaktifkan - kode kpm/compact.c pakai
+          # access_ok(addr, size) gaya baru, sementara kernel 4.14 masih pakai
+          # access_ok(type, addr, size) gaya lama -> fatal error macro mismatch.
+          # Pastiin gak ke-set kalau ada residu dari config lain:
+          sed -i '/^CONFIG_KPM=y/d' arch/arm64/configs/cepheus_defconfig
+          echo "=== Verifikasi CONFIG_KPM gak aktif ==="
+          grep "CONFIG_KPM" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KPM tidak di-set (default n) - aman"
+     
       - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
         run: |
           cd kernel
