@@ -71,11 +71,15 @@ jobs:
           curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/proc/task_mmu.c" -o fs/proc/task_mmu.c
           grep -c "susfs" fs/proc/task_mmu.c
           # Fix known bug: susfs_try_umount_all() manggil susfs_try_umount() yang
-          # dibungkus #ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT - kalau flag ini gak nyala,
-          # implicit declaration error. Bug yang sama kayak yang pernah ditemuin
-          # dulu di build TURTLE original.
-          grep -q "^CONFIG_KSU_SUSFS_TRY_UMOUNT=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> arch/arm64/configs/cepheus_defconfig
-          grep "CONFIG_KSU_SUSFS_TRY_UMOUNT" arch/arm64/configs/cepheus_defconfig
+          # dibungkus #ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT. Symbol Kconfig ini TIDAK
+          # terdaftar sama sekali di branch builtin (SukiSU-Ultra gak bundling
+          # sub-option SUSFS individual, cuma ada master switch KSU_SUSFS), jadi
+          # nyalain "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" di defconfig percuma - bakal
+          # di-drop diam-diam sama Kconfig merge. Solusi: hapus langsung guard
+          # ifdef/endif-nya biar fungsi selalu ke-compile, gak gantung Kconfig.
+          echo "aW1wb3J0IHN5cwpwYXRoID0gImZzL3N1c2ZzLmMiCndpdGggb3BlbihwYXRoLCAiciIpIGFzIGY6CiAgICBjb250ZW50ID0gZi5yZWFkKCkKCm9sZF9zdGFydCA9ICIvKiB0cnlfdW1vdW50ICovXG4jaWZkZWYgQ09ORklHX0tTVV9TVVNGU19UUllfVU1PVU5UXG5zdGF0aWMgREVGSU5FX1NQSU5MT0NLKHN1c2ZzX3NwaW5fbG9ja190cnlfdW1vdW50KTsiCm5ld19zdGFydCA9ICIvKiB0cnlfdW1vdW50ICovXG5zdGF0aWMgREVGSU5FX1NQSU5MT0NLKHN1c2ZzX3NwaW5fbG9ja190cnlfdW1vdW50KTsiCmlmIG9sZF9zdGFydCBub3QgaW4gY29udGVudDoKICAgIHByaW50KCIhISEgUGF0dGVybiBhd2FsIHRyeV91bW91bnQgZ2FrIGtldGVtdSwgY2VrIHVsYW5nIGlzaSBzdXNmcy5jIikKICAgIHN5cy5leGl0KDEpCmNvbnRlbnQgPSBjb250ZW50LnJlcGxhY2Uob2xkX3N0YXJ0LCBuZXdfc3RhcnQpCgpvbGRfZW5kID0gIn1cbiNlbmRpZiAvLyAjaWZkZWYgQ09ORklHX0tTVV9TVVNGU19UUllfVU1PVU5UXG5cbi8qIHNwb29mX3VuYW1lICovIgpuZXdfZW5kID0gIn1cblxuLyogc3Bvb2ZfdW5hbWUgKi8iCmlmIG9sZF9lbmQgbm90IGluIGNvbnRlbnQ6CiAgICBwcmludCgiISEhIFBhdHRlcm4gYWtoaXIgdHJ5X3Vtb3VudCBnYWsga2V0ZW11LCBjZWsgdWxhbmcgaXNpIHN1c2ZzLmMiKQogICAgc3lzLmV4aXQoMSkKY29udGVudCA9IGNvbnRlbnQucmVwbGFjZShvbGRfZW5kLCBuZXdfZW5kKQoKd2l0aCBvcGVuKHBhdGgsICJ3IikgYXMgZjoKICAgIGYud3JpdGUoY29udGVudCkKcHJpbnQoIltPS10gR3VhcmQgaWZkZWYvZW5kaWYgQ09ORklHX0tTVV9TVVNGU19UUllfVU1PVU5UIGJlcmhhc2lsIGRpaGFwdXMiKQo=" | base64 -d | python3
+          echo "=== Verifikasi susfs_try_umount sekarang unconditional ==="
+          grep -B2 -A1 "^void susfs_try_umount(uid_t uid)" fs/susfs.c
           # CATATAN RISIKO: file stat.c & task_mmu.c ini disinkronkan dari branch
           # KSUN raystef66 (16.0-ksun), yang hook call-site-nya ditulis buat
           # KernelSU-Next, BUKAN buat SukiSU-Ultra builtin (LSM hook). Kalau step
