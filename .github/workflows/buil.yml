@@ -45,102 +45,28 @@ jobs:
           grep -q "^CONFIG_KALLSYMS_ALL=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_KALLSYMS" arch/arm64/configs/cepheus_defconfig
 
-      - name: Enable CONFIG_KSU_MANUAL_HOOK wajib buat non-GKI (default hook method di GKI itu kprobe, di non-GKI harus manual)
+      - name: Enable CONFIG_KPROBES (dependency wajib CONFIG_KSU di branch susfs_new - "depends on KPROBES && EXT4_FS")
         run: |
           cd kernel
+          echo "=== Sebelum: baris KPROBES di defconfig ==="
+          grep -n "CONFIG_KPROBES" arch/arm64/configs/cepheus_defconfig
+          # Ganti "# CONFIG_KPROBES is not set" jadi "CONFIG_KPROBES=y"
+          sed -i 's/# CONFIG_KPROBES is not set/CONFIG_KPROBES=y/' arch/arm64/configs/cepheus_defconfig
           grep -q "^CONFIG_KSU=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU=y" >> arch/arm64/configs/cepheus_defconfig
-          grep -q "^CONFIG_KSU_MANUAL_HOOK=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/arm64/configs/cepheus_defconfig
-          echo "=== Verifikasi ==="
-          grep "CONFIG_KSU" arch/arm64/configs/cepheus_defconfig
+          echo "=== Sesudah ==="
+          grep -n "CONFIG_KPROBES\|^CONFIG_KSU=y" arch/arm64/configs/cepheus_defconfig
+          # CATATAN RISIKO: kprobe pernah dicurigai gak reliable di kernel 4.14 non-GKI
+          # ini (itu sebabnya dulu KSUN dipatch pakai manual hook reboot.c). Kalau
+          # habis ini device bootloop pas SukiSU coba attach kprobe saat runtime,
+          # itu sinyal kprobe emang broken - JANGAN flash permanen dulu, test pakai
+          # fastboot boot.
 
       - name: (Opsional) Enable CONFIG_KPM buat fitur KPM SukiSU-Ultra
         run: |
           cd kernel
           grep -q "^CONFIG_KPM=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KPM=y" >> arch/arm64/configs/cepheus_defconfig
           grep "CONFIG_KPM" arch/arm64/configs/cepheus_defconfig
-
-      - name: Upgrade hook call-site fs/exec.c, fs/open.c, fs/stat.c ke pola dual-hook (_hook flag + _sucompat)
-        run: |
-          cd kernel
-          cat > /tmp/upgrade_hooks.py << 'PYEOF'
-          import sys
-
-          def patch(path, old, new, label):
-              with open(path, "r") as f:
-                  content = f.read()
-              if old not in content:
-                  print(f"!!! PATTERN GAGAL DITEMUKAN: {label} di {path}")
-                  sys.exit(1)
-              if content.count(old) > 1:
-                  print(f"!!! PATTERN AMBIGU (muncul >1x): {label} di {path}")
-                  sys.exit(1)
-              content = content.replace(old, new)
-              with open(path, "w") as f:
-                  f.write(content)
-              print(f"[OK] {label} patched di {path}")
-
-          # === fs/exec.c: extern declarations ===
-          patch(
-              "fs/exec.c",
-              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t       void *envp, int *flags);\n#endif',
-              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern bool ksu_execveat_hook __read_mostly;\nextern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t       void *envp, int *flags);\nextern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t       void *envp, int *flags);\n#endif',
-              "exec.c extern block",
-          )
-
-          # === fs/exec.c: call site ===
-          patch(
-              "fs/exec.c",
-              '#ifdef CONFIG_KSU\n        ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);  // call KSU hook first\n#endif',
-              '#ifdef CONFIG_KSU\n        if (unlikely(ksu_execveat_hook))\n                ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n        else\n                ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n#endif',
-              "exec.c call site",
-          )
-
-          # === fs/open.c: extern declarations ===
-          patch(
-              "fs/open.c",
-              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,\n\t\t\t        int *flags);\n#endif',
-              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern bool ksu_faccessat_hook __read_mostly;\nextern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,\n\t\t\t        int *flags);\nextern int ksu_handle_faccessat_sucompat(int *dfd, const char __user **filename_user, int *mode,\n\t\t\t        int *flags);\n#endif',
-              "open.c extern block",
-          )
-
-          # === fs/open.c: call site ===
-          patch(
-              "fs/open.c",
-              '#ifdef CONFIG_KSU\n\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);  // call KSU hook first\n#endif',
-              '#ifdef CONFIG_KSU\n\tif (unlikely(ksu_faccessat_hook))\n\t\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n\telse\n\t\tksu_handle_faccessat_sucompat(&dfd, &filename, &mode, NULL);\n#endif',
-              "open.c call site",
-          )
-
-          # === fs/stat.c: extern declarations ===
-          patch(
-              "fs/stat.c",
-              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern int ksu_handle_stat(int *dfd, const char __user **filename_user);\n#endif',
-              '// KernelSU hook\n#ifdef CONFIG_KSU\nextern bool ksu_stat_hook __read_mostly;\nextern int ksu_handle_stat(int *dfd, const char __user **filename_user);\nextern int ksu_handle_stat_sucompat(int *dfd, const char __user **filename_user);\n#endif',
-              "stat.c extern block",
-          )
-
-          # === fs/stat.c: call site ===
-          patch(
-              "fs/stat.c",
-              '#ifdef CONFIG_KSU\n        ksu_handle_stat(&dfd, &filename); // call KSU hook first\n#endif',
-              '#ifdef CONFIG_KSU\n        if (unlikely(ksu_stat_hook))\n                ksu_handle_stat(&dfd, &filename);\n        else\n                ksu_handle_stat_sucompat(&dfd, &filename);\n#endif',
-              "stat.c call site",
-          )
-
-          print("=== Semua hook berhasil di-upgrade ke pola dual-hook ===")
-          PYEOF
-          python3 /tmp/upgrade_hooks.py
-
-      # CATATAN PENTING: step di atas ngasumsiin SukiSU-Ultra nyediain simbol
-      # ksu_faccessat_hook / ksu_handle_faccessat_sucompat dan ksu_stat_hook /
-      # ksu_handle_stat_sucompat, mengikuti pola penamaan yang sama kayak execveat.
-      # Ini EKSTRAPOLASI dari satu contoh resmi (execveat) yang kebukti di dokumentasi,
-      # BUKAN dikonfirmasi langsung dari source SukiSU-Ultra buat faccessat/stat.
-      # Kalau step build kernel di bawah gagal dengan "undefined reference to
-      # ksu_handle_faccessat_sucompat" atau "ksu_handle_stat_sucompat", itu tandanya
-      # nama simbolnya beda di source SukiSU-Ultra - perlu dicek langsung di
-      # KernelSU-Next/KernelSU/kernel/*.c hasil clone setup.sh buat nama pastinya.
-
+      
       - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
         run: |
           cd kernel
