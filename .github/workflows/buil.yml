@@ -71,7 +71,7 @@ jobs:
           sed -i '/^CONFIG_KPM=y/d' arch/arm64/configs/cepheus_defconfig
           echo "=== Verifikasi CONFIG_KPM gak aktif ==="
           grep "CONFIG_KPM" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KPM tidak di-set (default n) - aman"
-     
+        
       - name: Backport set_memory.h dari kernel 4.19 (wajib buat kernel <4.19)
         run: |
           cd kernel
