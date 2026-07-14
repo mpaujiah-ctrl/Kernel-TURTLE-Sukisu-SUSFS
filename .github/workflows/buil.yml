@@ -70,6 +70,12 @@ jobs:
           grep -c "susfs" fs/stat.c
           curl -sL "https://raw.githubusercontent.com/raystef66/kernel_xiaomi_cepheus/16.0-ksun/fs/proc/task_mmu.c" -o fs/proc/task_mmu.c
           grep -c "susfs" fs/proc/task_mmu.c
+          # Fix known bug: susfs_try_umount_all() manggil susfs_try_umount() yang
+          # dibungkus #ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT - kalau flag ini gak nyala,
+          # implicit declaration error. Bug yang sama kayak yang pernah ditemuin
+          # dulu di build TURTLE original.
+          grep -q "^CONFIG_KSU_SUSFS_TRY_UMOUNT=y" arch/arm64/configs/cepheus_defconfig || echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> arch/arm64/configs/cepheus_defconfig
+          grep "CONFIG_KSU_SUSFS_TRY_UMOUNT" arch/arm64/configs/cepheus_defconfig
           # CATATAN RISIKO: file stat.c & task_mmu.c ini disinkronkan dari branch
           # KSUN raystef66 (16.0-ksun), yang hook call-site-nya ditulis buat
           # KernelSU-Next, BUKAN buat SukiSU-Ultra builtin (LSM hook). Kalau step
