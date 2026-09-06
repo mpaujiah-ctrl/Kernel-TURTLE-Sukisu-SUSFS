@@ -70,7 +70,7 @@ jobs:
         working-directory: kernel
         run: |
           cp ../ref_patches/Patches/Patch/sukisu_ultra_fixed.patch ./
-          patch -p1 < sukisu_ultra_fixed.patch || true
+          patch -p1 --fuzz=0 < "$(basename "$PATCH_FILE")" 2>&1 | tee ../susfs_patch_log.txt
           echo "[+] SukiSU-Ultra Fixed applied (cek .rej kalau ada di bawah)."
 
       - name: Set config dasar KSU + KALLSYMS
