@@ -22,9 +22,6 @@ env:
   KERNEL_BRANCH: "16.0"
   DEFCONFIG_NAME: "cepheus_defconfig"
   KERNEL_ARCH: "arm64"
-  # Repo referensi tempat kita comot patch + clean_hook.sh
-  PATCHES_REPO: "JackA1ltman/NonGKI_Kernel_Build_2nd"
-  PATCHES_BRANCH: "mainline"
   KPM_ENABLE: "true"
 
 jobs:
@@ -45,15 +42,10 @@ jobs:
           echo "KERNEL_VERSION=$KV" >> "$GITHUB_ENV"
           echo "[+] Terdeteksi kernel version: $KV"
 
-      - name: Clone repo patch referensi (JackA1ltman)
-        run: |
-          git clone --depth=1 -b "${{ env.PATCHES_BRANCH }}" \
-            "https://github.com/${{ env.PATCHES_REPO }}.git" ref_patches
-
       - name: Bersihin hook lama (clean_hook.sh) - biar idempotent kalau di-rerun
         working-directory: kernel
         run: |
-          cp ../ref_patches/Bin/clean_hook.sh ./
+          cp ../clean_hook.sh ./
           bash clean_hook.sh
           echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
           grep -rl "CONFIG_KSU" fs/ kernel/ security/ 2>/dev/null || echo "bersih"
@@ -69,8 +61,8 @@ jobs:
       - name: Patch SukiSU-Ultra Fixed (compat non-static-key, dsb)
         working-directory: kernel
         run: |
-          cp ../ref_patches/Patches/Patch/sukisu_ultra_fixed.patch ./
-          patch -p1 --fuzz=0 < "$(basename "$PATCH_FILE")" 2>&1 | tee ../susfs_patch_log.txt
+          cp ../sukisu_ultra_fixed.patch ./
+          patch -p1 < sukisu_ultra_fixed.patch || true
           echo "[+] SukiSU-Ultra Fixed applied (cek .rej kalau ada di bawah)."
 
       - name: Set config dasar KSU + KALLSYMS
@@ -90,7 +82,7 @@ jobs:
           if [ -f "include/linux/set_memory.h" ]; then
             echo "[+] set_memory.h sudah ada, skip backport."
           else
-            cp ../ref_patches/Patches/Patch/set_memory_to_49_and_low.patch ./
+            cp ../set_memory_to_49_and_low.patch ./
             patch -p1 < set_memory_to_49_and_low.patch || true
             echo "[+] Backport set_memory.h selesai (cek .rej kalau gagal)."
           fi
@@ -102,15 +94,15 @@ jobs:
           if grep -q "CONFIG_KSU_SUSFS" "fs/namespace.c" 2>/dev/null; then
             echo "[-] SUSFS sudah ada di source (branch builtin bawaan), skip apply patch."
           else
-            PATCH_FILE="../ref_patches/Patches/Patch/susfs_patch_to_${{ env.KERNEL_VERSION }}.patch"
+            PATCH_FILE="../susfs_patch_to_${{ env.KERNEL_VERSION }}.patch"
             if [ ! -f "$PATCH_FILE" ]; then
-              echo "[-] Gak ada patch buat kernel version ${{ env.KERNEL_VERSION }} di repo referensi!"
-              echo "[-] Cek manual daftar file di ref_patches/Patches/Patch/"
+              echo "[-] File $PATCH_FILE gak ketemu di root repo!"
+              echo "[-] Cek lagi nama file yang lo download, harus persis susfs_patch_to_${{ env.KERNEL_VERSION }}.patch"
               exit 1
             fi
             cp "$PATCH_FILE" ./
-            patch -p1 < "$(basename "$PATCH_FILE")" || true
-            echo "[+] SUSFS patch applied (cek .rej di bawah kalau ada yang reject)."
+            patch -p1 --fuzz=0 < "$(basename "$PATCH_FILE")" 2>&1 | tee ../susfs_patch_log.txt
+            echo "[+] SUSFS patch selesai diproses - cek susfs_patch_log.txt & .rej kalau ada hunk gagal."
           fi
 
       - name: Set config SUSFS
@@ -217,5 +209,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rej-files
-          path: rej_collected/
+          path: |
+            rej_collected/
+            susfs_patch_log.txt
           if-no-files-found: ignore
