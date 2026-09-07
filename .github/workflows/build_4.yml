@@ -50,13 +50,16 @@ jobs:
           echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
           grep -rl "CONFIG_KSU" fs/ kernel/ security/ 2>/dev/null || echo "bersih"
 
-      - name: Integrasi SukiSU-Ultra (branch builtin, manual-hook)
+      - name: Integrasi SukiSU-Ultra (dari fork sendiri)
         working-directory: kernel
         run: |
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
-          echo "=== Verifikasi hasil setup.sh ==="
-          ls -la drivers/kernelsu || ls -la common/drivers/kernelsu
-          grep -i "kernelsu" drivers/Makefile drivers/Kconfig || true
+          git clone --depth=1 https://github.com/mpaujiah-ctrl/SukiSU-Ultra.git /tmp/sukisu-fork
+          ln -sf /tmp/sukisu-fork/kernel drivers/kernelsu
+          grep -q "kernelsu" drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> drivers/Makefile
+          grep -q 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+          echo "=== Verifikasi ==="
+          ls -la drivers/kernelsu
+          grep -i "kernelsu" drivers/Makefile drivers/Kconfig
 
       - name: Patch kernel_umount.c missing set handler (bug upstream)
         working-directory: kernel
