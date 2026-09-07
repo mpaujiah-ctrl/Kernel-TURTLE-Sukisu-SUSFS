@@ -42,11 +42,11 @@ jobs:
           echo "KERNEL_VERSION=$KV" >> "$GITHUB_ENV"
           echo "[+] Terdeteksi kernel version: $KV"
 
-      - name: Bersihin hook lama (clean_hook.sh) - biar idempotent kalau di-rerun
-        working-directory: kernel
+      - name: (Skip) clean_hook.sh gak diperlukan - selalu fresh clone
         run: |
-          cp ../clean_hook.sh ./
-          bash clean_hook.sh
+          echo "[+] clean_hook.sh didesain buat reset kernel tree yang dipakai berulang."
+          echo "[+] Kita selalu git clone --depth=1 fresh tiap run, jadi source udah vanilla."
+          echo "[+] Skip demi hindari resiko sed/perl regex salah-tangkep di sched.h (raystef66 udah kernelSU-ready)."
           echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
           grep -rl "CONFIG_KSU" fs/ kernel/ security/ 2>/dev/null || echo "bersih"
 
