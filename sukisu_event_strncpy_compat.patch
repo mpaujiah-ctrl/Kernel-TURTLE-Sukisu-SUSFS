@@ -1,0 +1,30 @@
+diff --git a/sulog/event.c b/sulog/event.c
+--- a/sulog/event.c
++++ b/sulog/event.c
+@@ -80,7 +80,7 @@
+     if (!filename_user)
+         return ksu_sulog_copy_empty_string(dst);
+ 
+-    ret = ksu_strncpy_from_user_nofault(dst, (const void __user *)untagged_addr((unsigned long)filename_user), dst_len);
++    ret = __strncpy_from_user_nofault(dst, (const void __user *)untagged_addr((unsigned long)filename_user), dst_len);
+     if (ret <= 0)
+         return ksu_sulog_copy_empty_string(dst);
+ 
+@@ -142,7 +142,7 @@
+             return ksu_sulog_copy_empty_string(dst);
+ 
+         copied =
+-            ksu_strncpy_from_user_nofault(arg, (const void __user *)untagged_addr((unsigned long)arg_user), sizeof(arg));
++            __strncpy_from_user_nofault(arg, (const void __user *)untagged_addr((unsigned long)arg_user), sizeof(arg));
+         if (copied <= 0)
+             return ksu_sulog_copy_empty_string(dst);
+ 
+@@ -257,7 +257,7 @@
+         if (IS_ERR(arg_user))
+             return ksu_sulog_copy_empty_string(dst);
+ 
+-        copied = ksu_strncpy_from_user_nofault(arg, (const void __user *)untagged_addr((unsigned long)arg_user),
++        copied = __strncpy_from_user_nofault(arg, (const void __user *)untagged_addr((unsigned long)arg_user),
+                                                sizeof(arg));
+         if (copied <= 0)
+             return ksu_sulog_copy_empty_string(dst);
