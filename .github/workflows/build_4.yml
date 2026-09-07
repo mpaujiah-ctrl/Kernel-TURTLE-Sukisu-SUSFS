@@ -58,6 +58,12 @@ jobs:
           ls -la drivers/kernelsu || ls -la common/drivers/kernelsu
           grep -i "kernelsu" drivers/Makefile drivers/Kconfig || true
 
+      - name: Patch kernel_umount.c missing set handler (bug upstream)
+        working-directory: kernel
+        run: |
+          cp ../kernel_umount_set_missing.patch .
+          patch -p1 < kernel_umount_set_missing.patch || true
+      
       - name: Patch SukiSU-Ultra Fixed (compat non-static-key, dsb)
         working-directory: kernel
         run: |
