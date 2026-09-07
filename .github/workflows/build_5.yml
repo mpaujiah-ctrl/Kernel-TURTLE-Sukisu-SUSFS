@@ -20,7 +20,7 @@ on:
 env:
   KERNEL_SOURCE: "https://github.com/JoK3rLeE/android_kernel_xiaomi_sm8150"
   KERNEL_BRANCH: "16.0-cepheus"
-  DEFCONFIG_NAME: "cepheus_defconfig"
+  DEFCONFIG_NAME: "defconfig"
   KERNEL_ARCH: "arm64"
   KPM_ENABLE: "true"
 
