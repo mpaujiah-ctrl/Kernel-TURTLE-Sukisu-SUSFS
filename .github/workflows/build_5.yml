@@ -20,7 +20,7 @@ on:
 env:
   KERNEL_SOURCE: "https://github.com/JoK3rLeE/android_kernel_xiaomi_sm8150"
   KERNEL_BRANCH: "16.0-cepheus"
-  DEFCONFIG_NAME: "cepheus.config"
+  DEFCONFIG_NAME: "sm8150-perf_defconfig"
   KERNEL_ARCH: "arm64"
   KPM_ENABLE: "true"
 
@@ -190,7 +190,7 @@ jobs:
       - name: Update localversion
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/vendor/xiaomi/${{ env.DEFCONFIG_NAME }}"
+          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/vendor/${{ env.DEFCONFIG_NAME }}"
           sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-SukiSUUltra_Builtin+SUSFS"/' "$DEFCONFIG"
           grep "CONFIG_LOCALVERSION" "$DEFCONFIG"
 
