@@ -65,6 +65,12 @@ jobs:
           patch -p1 < sukisu_ultra_fixed_2.patch || true
           echo "[+] SukiSU-Ultra Fixed applied (cek .rej kalau ada di bawah)."
 
+      - name: Patch event.c strncpy compat (upstream naming berubah)
+        working-directory: kernel
+        run: |
+          cp ../sukisu_event_strncpy_compat.patch .
+          patch -p1 < sukisu_event_strncpy_compat.patch || true
+      
       - name: Patch KPM access_ok compat (kernel lama 3-arg)
         working-directory: kernel
         run: |
