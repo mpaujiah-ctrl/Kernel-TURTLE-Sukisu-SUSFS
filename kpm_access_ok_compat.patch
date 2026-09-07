@@ -1,0 +1,103 @@
+diff --git a/drivers/kernelsu/kpm/kpm.c b/drivers/kernelsu/kpm/kpm.c
+--- a/drivers/kernelsu/kpm/kpm.c
++++ b/drivers/kernelsu/kpm/kpm.c
+@@ -36,6 +36,16 @@
+ #include <linux/moduleloader.h>
+ #endif
+ 
++/* Compat: pre-5.0 kernels use access_ok(type, addr, size); the "type"
++ * argument (VERIFY_READ/VERIFY_WRITE) is ignored internally on arm64
++ * anyway, so passing VERIFY_READ is safe for both read and write checks.
++ * 5.0+ kernels dropped the type argument entirely. */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
++#define ksu_kpm_access_ok(addr, size) access_ok(VERIFY_READ, (addr), (size))
++#else
++#define ksu_kpm_access_ok(addr, size) access_ok((addr), (size))
++#endif
++
+ #define KPM_NAME_LEN 32
+ #define KPM_ARGS_LEN 1024
+ 
+@@ -132,14 +142,14 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg1, 255)) {
++        if (!ksu_kpm_access_ok(arg1, 255)) {
+             goto invalid_arg;
+         }
+ 
+         strncpy_from_user((char *)&kernel_load_path, (const char *)arg1, 255);
+ 
+         if (arg2 != 0) {
+-            if (!access_ok(arg2, 255)) {
++            if (!ksu_kpm_access_ok(arg2, 255)) {
+                 goto invalid_arg;
+             }
+ 
+@@ -158,7 +168,7 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg1, sizeof(kernel_name_buffer))) {
++        if (!ksu_kpm_access_ok(arg1, sizeof(kernel_name_buffer))) {
+             goto invalid_arg;
+         }
+ 
+@@ -178,7 +188,7 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg1, sizeof(kernel_name_buffer))) {
++        if (!ksu_kpm_access_ok(arg1, sizeof(kernel_name_buffer))) {
+             goto invalid_arg;
+         }
+ 
+@@ -189,7 +199,7 @@
+         sukisu_kpm_info((const char *)&kernel_name_buffer, (char *)&buf,
+                         sizeof(buf), &size);
+ 
+-        if (!access_ok(arg2, size)) {
++        if (!ksu_kpm_access_ok(arg2, size)) {
+             goto invalid_arg;
+         }
+ 
+@@ -204,7 +214,7 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg2, len)) {
++        if (!ksu_kpm_access_ok(arg2, len)) {
+             goto invalid_arg;
+         }
+ 
+@@ -222,11 +232,11 @@
+         char kpm_name[KPM_NAME_LEN] = { 0 };
+         char kpm_args[KPM_ARGS_LEN] = { 0 };
+ 
+-        if (!access_ok(arg1, sizeof(kpm_name))) {
++        if (!ksu_kpm_access_ok(arg1, sizeof(kpm_name))) {
+             goto invalid_arg;
+         }
+ 
+-        if (!access_ok(arg2, sizeof(kpm_args))) {
++        if (!ksu_kpm_access_ok(arg2, sizeof(kpm_args))) {
+             goto invalid_arg;
+         }
+ 
+@@ -286,13 +296,13 @@
+         return -EFAULT;
+     }
+ 
+-    if (!access_ok(cmd.control_code, sizeof(int))) {
++    if (!ksu_kpm_access_ok(cmd.control_code, sizeof(int))) {
+         pr_err("kpm: invalid control_code pointer %px\n",
+                (void *)cmd.control_code);
+         return -EFAULT;
+     }
+ 
+-    if (!access_ok(cmd.result_code, sizeof(int))) {
++    if (!ksu_kpm_access_ok(cmd.result_code, sizeof(int))) {
+         pr_err("kpm: invalid result_code pointer %px\n",
+                (void *)cmd.result_code);
+         return -EFAULT;
