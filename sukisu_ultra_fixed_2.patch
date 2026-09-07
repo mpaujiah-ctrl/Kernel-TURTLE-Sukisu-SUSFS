@@ -1,21 +1,20 @@
 diff --git a/feature/selinux_hide.c b/feature/selinux_hide.c
-index 31b2de8..f6a68d7 100644
 --- a/feature/selinux_hide.c
 +++ b/feature/selinux_hide.c
-@@ -36,7 +36,11 @@ extern void context_struct_compute_av_fn(struct policydb *policydb,
+@@ -36,7 +36,11 @@
  struct selinux_state fake_state;
  #endif
  #ifdef KSU_COMPAT_USE_STATIC_KEY
 -DEFINE_STATIC_KEY_FALSE(fake_status_initialize_key);
 +// We should talk to you, susfs
 +// Why use manual hook instead of auto hook
-+__maybe_static DEFINE_STATIC_KEY_FALSE(fake_status_initialize_key);
++static DEFINE_STATIC_KEY_FALSE(fake_status_initialize_key);
 +#else
 +static bool fake_status_initialize_key __read_mostly = false;
  #endif
  struct page *fake_status = NULL;
  
-@@ -78,14 +82,22 @@ void ksu_selinux_hide_handle_second_stage()
+@@ -78,14 +82,22 @@
      initialize_fake_status();
      // https://github.com/torvalds/linux/blame/e8c2f9fdadee7cbc75134dc463c1e0d856d6e5c7/security/selinux/selinuxfs.c#L2014
      if (fake_status)
@@ -39,10 +38,9 @@ index 31b2de8..f6a68d7 100644
          pr_err("selinux_hide: fake status is not initialized after post-fs-data!\n");
  }
 diff --git a/infra/kernel_compat.h b/infra/kernel_compat.h
-index 5b10ee7..bea39fb 100644
 --- a/infra/kernel_compat.h
 +++ b/infra/kernel_compat.h
-@@ -256,4 +256,29 @@ __weak void groups_sort(struct group_info *group_info)
+@@ -256,4 +256,29 @@
  
  #endif
  
@@ -73,7 +71,6 @@ index 5b10ee7..bea39fb 100644
 +
  #endif
 diff --git a/policy/allowlist.c b/policy/allowlist.c
-index fa32ac1..19e15d0 100644
 --- a/policy/allowlist.c
 +++ b/policy/allowlist.c
 @@ -1,3 +1,5 @@
@@ -82,7 +79,7 @@ index fa32ac1..19e15d0 100644
  #define FILE_MAGIC 0x7f4b5355 // ' KSU', u32
  #define FILE_FORMAT_VERSION 4 // u32
  
-@@ -576,4 +578,4 @@ void __exit ksu_allowlist_exit(void)
+@@ -572,4 +574,4 @@
          put_perm_data(np);
      }
      mutex_unlock(&allowlist_mutex);
@@ -90,18 +87,17 @@ index fa32ac1..19e15d0 100644
 \ No newline at end of file
 +}
 diff --git a/runtime/ksud.c b/runtime/ksud.c
-index c9d11da..1f32d11 100644
 --- a/runtime/ksud.c
 +++ b/runtime/ksud.c
-@@ -61,7 +61,6 @@ void on_post_fs_data(void)
- #else
+@@ -54,7 +54,6 @@
+     ksu_observer_init();
+     // sanity check, this may influence the performance
      stop_input_hook();
- #endif
 -    ksu_selinux_hide_handle_post_fs_data();
  }
  
  extern void ext4_unregister_sysfs(struct super_block *sb);
-@@ -223,7 +222,6 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -216,7 +215,6 @@
              char buf[16];
              if (check_argv(*argv, 1, "second_stage", buf, sizeof(buf))) {
                  pr_info("/system/bin/init second_stage executed\n");
@@ -109,11 +105,18 @@ index c9d11da..1f32d11 100644
                  apply_kernelsu_rules();
                  cache_sid();
                  setup_ksu_cred();
+@@ -288,7 +286,6 @@
+         char buf[16];
+         if (!init_second_stage_executed && check_argv(*argv, 1, "second_stage", buf, sizeof(buf))) {
+             pr_info("/system/bin/init second_stage executed\n");
+-            ksu_selinux_hide_handle_second_stage();
+             apply_kernelsu_rules();
+             cache_sid();
+             setup_ksu_cred();
 diff --git a/sulog/event.c b/sulog/event.c
-index e45f01f..9a1b25c 100644
 --- a/sulog/event.c
 +++ b/sulog/event.c
-@@ -142,7 +142,7 @@ static __u32 ksu_sulog_flatten_argv(struct user_arg_ptr *argv_user, char *dst, _
+@@ -142,7 +142,7 @@
              return ksu_sulog_copy_empty_string(dst);
  
          copied =
@@ -122,7 +125,7 @@ index e45f01f..9a1b25c 100644
          if (copied <= 0)
              return ksu_sulog_copy_empty_string(dst);
  
-@@ -374,7 +374,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture_grant_root(const struct
+@@ -374,7 +374,7 @@
      struct ksu_sulog_event *event;
  
      // This is actually stupid fix
