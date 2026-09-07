@@ -1,0 +1,215 @@
+# Kernel cepheus - SukiSU-Ultra (builtin/manual-hook) + SUSFS
+# Teknik diadaptasi dari JackA1ltman/NonGKI_Kernel_Build_2nd
+#
+# Perubahan vs yaml lama:
+# 1. Branch SukiSU "builtin" (bukan "old"/tracepoint) - biar hook-nya
+#    manual-hook, cocok sama SUSFS yang di-sync manual.
+# 2. Gak ada lagi base64-python monkeypatch. Semua fix dipatch pakai
+#    file .patch beneran yang ditarik dari repo JackA1ltman.
+# 3. Ada clean_hook.sh di awal - reset idempotent, aman di-rerun berkali2.
+# 4. Cek "udah dipatch belum" sebelum apply SUSFS (grep CONFIG_KSU_SUSFS).
+# 5. KERNEL_VERSION dideteksi otomatis dari Makefile, bukan hardcode.
+# 6. .rej files di-upload sebagai artifact kalau ada yang gagal apply.
+# 7. KPM/set_memory dicek dulu keberadaan filenya sebelum backport.
+
+name: Kernel cepheus - SukiSU-Ultra builtin + SUSFS
+
+on:
+  workflow_dispatch:
+
+env:
+  KERNEL_SOURCE: "https://github.com/raystef66/kernel_xiaomi_cepheus"
+  KERNEL_BRANCH: "16.0"
+  DEFCONFIG_NAME: "cepheus_defconfig"
+  KERNEL_ARCH: "arm64"
+  KPM_ENABLE: "true"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo sendiri
+        uses: actions/checkout@v4
+
+      - name: Clone kernel source (raystef66)
+        run: |
+          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_SOURCE }}" kernel
+
+      - name: Deteksi KERNEL_VERSION dari Makefile
+        working-directory: kernel
+        run: |
+          KV=$(head -n 3 Makefile | grep -E 'VERSION|PATCHLEVEL' | awk '{print $3}' | paste -sd '.')
+          echo "KERNEL_VERSION=$KV" >> "$GITHUB_ENV"
+          echo "[+] Terdeteksi kernel version: $KV"
+
+      - name: Bersihin hook lama (clean_hook_2.sh) - biar idempotent kalau di-rerun
+        working-directory: kernel
+        run: |
+          cp ../clean_hook_2.sh ./
+          bash clean_hook_2.sh
+          echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
+          grep -rl "CONFIG_KSU" fs/ kernel/ security/ 2>/dev/null || echo "bersih"
+
+      - name: Integrasi SukiSU-Ultra (branch builtin, manual-hook)
+        working-directory: kernel
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
+          echo "=== Verifikasi hasil setup.sh ==="
+          ls -la drivers/kernelsu || ls -la common/drivers/kernelsu
+          grep -i "kernelsu" drivers/Makefile drivers/Kconfig || true
+
+      - name: Patch SukiSU-Ultra Fixed (compat non-static-key, dsb)
+        working-directory: kernel
+        run: |
+          cp ../sukisu_ultra_fixed_2.patch ./
+          patch -p1 < sukisu_ultra_fixed_2.patch || true
+          echo "[+] SukiSU-Ultra Fixed applied (cek .rej kalau ada di bawah)."
+
+      - name: Set config dasar KSU + KALLSYMS
+        working-directory: kernel
+        run: |
+          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
+          grep -q "^CONFIG_KSU=y" "$DEFCONFIG" || echo "CONFIG_KSU=y" >> "$DEFCONFIG"
+          grep -q "^CONFIG_KALLSYMS=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS=y" >> "$DEFCONFIG"
+          grep -q "^CONFIG_KALLSYMS_ALL=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG"
+          grep "CONFIG_K" "$DEFCONFIG"
+
+      - name: KPM - cek set_memory.h, backport kalau belum ada
+        if: env.KPM_ENABLE == 'true'
+        working-directory: kernel
+        run: |
+          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
+          if [ -f "include/linux/set_memory.h" ]; then
+            echo "[+] set_memory.h sudah ada, skip backport."
+          else
+            cp ../set_memory_to_49_and_low.patch ./
+            patch -p1 < set_memory_to_49_and_low.patch || true
+            echo "[+] Backport set_memory.h selesai (cek .rej kalau gagal)."
+          fi
+          echo "CONFIG_KPM=y" >> "$DEFCONFIG"
+
+      - name: SUSFS - cek udah dipatch belum, apply kalau belum
+        working-directory: kernel
+        run: |
+          if grep -q "CONFIG_KSU_SUSFS" "fs/namespace.c" 2>/dev/null; then
+            echo "[-] SUSFS sudah ada di source (branch builtin bawaan), skip apply patch."
+          else
+            PATCH_FILE="../susfs_patch_to_${{ env.KERNEL_VERSION }}.patch"
+            if [ ! -f "$PATCH_FILE" ]; then
+              echo "[-] File $PATCH_FILE gak ketemu di root repo!"
+              echo "[-] Cek lagi nama file yang lo download, harus persis susfs_patch_to_${{ env.KERNEL_VERSION }}.patch"
+              exit 1
+            fi
+            cp "$PATCH_FILE" ./
+            patch -p1 --fuzz=0 < "$(basename "$PATCH_FILE")" 2>&1 | tee ../susfs_patch_log.txt
+            echo "[+] SUSFS patch selesai diproses - cek susfs_patch_log.txt & .rej kalau ada hunk gagal."
+          fi
+
+      - name: Set config SUSFS
+        working-directory: kernel
+        run: |
+          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
+          for CFG in \
+            CONFIG_KSU_SUSFS \
+            CONFIG_KSU_SUSFS_SUS_PATH \
+            CONFIG_KSU_SUSFS_SUS_MOUNT \
+            CONFIG_KSU_SUSFS_SUS_KSTAT \
+            CONFIG_KSU_SUSFS_SPOOF_UNAME \
+            CONFIG_KSU_SUSFS_ENABLE_LOG \
+            CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
+            CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
+            CONFIG_KSU_SUSFS_OPEN_REDIRECT \
+            CONFIG_KSU_SUSFS_SUS_MAP ; do
+            grep -q "^${CFG}=y" "$DEFCONFIG" || echo "${CFG}=y" >> "$DEFCONFIG"
+          done
+          if grep -q "THREAD_INFO_IN_TASK" drivers/kernelsu/Kconfig 2>/dev/null; then
+            echo "CONFIG_THREAD_INFO_IN_TASK=y" >> "$DEFCONFIG"
+          fi
+          echo "=== Isi defconfig terkait KSU/SUSFS ==="
+          grep "CONFIG_KSU" "$DEFCONFIG"
+
+      - name: Kumpulin semua file .rej (kalau ada yang gagal apply)
+        working-directory: kernel
+        run: |
+          mkdir -p ../rej_collected
+          find . -name "*.rej" -exec cp --parents {} ../rej_collected/ \; 2>/dev/null || true
+          COUNT=$(find ../rej_collected -name "*.rej" | wc -l)
+          echo "[+] Ditemukan $COUNT file .rej"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::warning::Ada $COUNT hunk yang gagal di-apply, cek artifact rej-files"
+          fi
+
+      - name: Update localversion
+        working-directory: kernel
+        run: |
+          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-SukiSUUltra_Builtin+SUSFS"/' "$DEFCONFIG"
+          grep "CONFIG_LOCALVERSION" "$DEFCONFIG"
+
+      - name: Install toolchain
+        run: |
+          sudo apt update
+          sudo apt install -y clang lld llvm bc bison flex libssl-dev libelf-dev build-essential
+          sudo apt install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Clone AnyKernel3
+        run: git clone --depth=1 https://github.com/osm0sis/AnyKernel3
+
+      - name: Fix yamltree.c (stub, buat host toolchain baru)
+        working-directory: kernel
+        run: |
+          cat > scripts/dtc/yamltree.c << 'CEOF'
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          struct dt_info;
+
+          void dt_to_yaml(FILE *outf, struct dt_info *dti) {}
+          CEOF
+
+      - name: Build kernel
+        working-directory: kernel
+        run: |
+          export ARCH=arm64
+          export LLVM=1
+          export CC=clang
+          export AR=llvm-ar
+          export LD=ld.lld
+          export NM=llvm-nm
+          export OBJCOPY=llvm-objcopy
+          export OBJDUMP=llvm-objdump
+          export STRIP=llvm-strip
+          export CROSS_COMPILE=aarch64-linux-gnu-
+
+          make O=out ARCH=arm64 "${{ env.DEFCONFIG_NAME }}"
+          make ARCH=arm64 O=out CC=clang AR=llvm-ar LD=ld.lld \
+               NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+               -j"$(nproc --all)" Image.gz-dtb
+
+          ls out/arch/arm64/boot/Image.gz-dtb
+          ls out/arch/arm64/boot/Image
+
+      - name: Pack AnyKernel3
+        run: |
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          cp kernel/out/arch/arm64/boot/Image kernel-pure.img
+          cd AnyKernel3 && zip -r9 ../cepheus_SukiSUUltra_Builtin_SUSFS.zip * -x README
+
+      - name: Upload hasil build
+        uses: actions/upload-artifact@v4
+        with:
+          name: cepheus-SukiSUUltra-Builtin-SUSFS
+          path: |
+            cepheus_SukiSUUltra_Builtin_SUSFS.zip
+            kernel/out/arch/arm64/boot/Image.gz-dtb
+            kernel-pure.img
+
+      - name: Upload .rej files (kalau ada patch yang gagal)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rej-files
+          path: |
+            rej_collected/
+            susfs_patch_log.txt
+          if-no-files-found: ignore
