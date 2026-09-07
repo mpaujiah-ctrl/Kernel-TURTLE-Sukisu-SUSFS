@@ -96,6 +96,13 @@ jobs:
           grep -q "^CONFIG_KALLSYMS_ALL=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG"
           grep "CONFIG_K" "$DEFCONFIG"
 
+      - name: Fix KSU undefined symbol in reboot.c & Makefile
+        working-directory: kernel
+        run: |
+          echo "[+] Patching kernel/reboot.c and drivers/Makefile..."
+          sed -i 's/obj-\$(CONFIG_KSU) += kernelsu\//obj-y += kernelsu\//g' drivers/Makefile
+          sed -i '/ksu_handle_sys_reboot/d' kernel/reboot.c
+      
       - name: KPM - cek set_memory.h, backport kalau belum ada
         if: env.KPM_ENABLE == 'true'
         working-directory: kernel
