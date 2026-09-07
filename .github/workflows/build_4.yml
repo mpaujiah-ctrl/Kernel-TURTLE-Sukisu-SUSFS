@@ -96,13 +96,23 @@ jobs:
           grep -q "^CONFIG_KALLSYMS_ALL=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG"
           grep "CONFIG_K" "$DEFCONFIG"
 
-      - name: Fix KSU in kernel/reboot.c & Makefile
+      - name: Clean reboot.c syntax and fix KSU
         working-directory: kernel
         run: |
-          echo "[+] Cleaning up reboot.c and drivers/Makefile..."
-          # Hapus baris yang mengandung ksu_handle_sys_reboot
-          sed -i '/ksu_handle_sys_reboot/d' kernel/reboot.c
-          # Pastikan drivers/Makefile menggunakan obj-y
+          echo "[+] Cleaning reboot.c using Python..."
+          python3 -c "
+          import re
+          with open('kernel/reboot.c', 'r') as f:
+              content = f.read()
+          
+          # Hapus pemanggilan ksu_handle_sys_reboot beserta tanda kurungnya secara bersih
+          cleaned = re.sub(r'ksu_handle_sys_reboot\s*\([^)]*\)\s*;?', '', content)
+          
+          with open('kernel/reboot.c', 'w') as f:
+              f.write(cleaned)
+          "
+          
+          echo "[+] Updating drivers/Makefile..."
           sed -i 's/obj-\$(CONFIG_KSU) += kernelsu\//obj-y += kernelsu\//g' drivers/Makefile
       
       - name: KPM - cek set_memory.h, backport kalau belum ada
