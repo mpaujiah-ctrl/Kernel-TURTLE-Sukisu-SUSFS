@@ -42,11 +42,13 @@ jobs:
           echo "KERNEL_VERSION=$KV" >> "$GITHUB_ENV"
           echo "[+] Terdeteksi kernel version: $KV"
 
-      - name: (Skip) clean_hook.sh gak diperlukan - selalu fresh clone
+      - name: Bersihin hook lama (clean_hook_2.sh - nesting-aware, fixed)
+        working-directory: kernel
         run: |
-          echo "[+] clean_hook.sh didesain buat reset kernel tree yang dipakai berulang."
-          echo "[+] Kita selalu git clone --depth=1 fresh tiap run, jadi source udah vanilla."
-          echo "[+] Skip demi hindari resiko sed/perl regex salah-tangkep di sched.h (raystef66 udah kernelSU-ready)."
+          cp ../clean_hook_2.sh ./
+          bash clean_hook_2.sh
+          echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
+          grep -rl "CONFIG_KSU" fs/ kernel/ security/ include/linux/sched.h include/linux/mount.h 2>/dev/null || echo "bersih"
           echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
           grep -rl "CONFIG_KSU" fs/ kernel/ security/ 2>/dev/null || echo "bersih"
 
@@ -125,7 +127,6 @@ jobs:
             CONFIG_KSU_SUSFS \
             CONFIG_KSU_SUSFS_SUS_PATH \
             CONFIG_KSU_SUSFS_SUS_MOUNT \
-            CONFIG_KSU_SUSFS_SUS_KSTAT \
             CONFIG_KSU_SUSFS_SPOOF_UNAME \
             CONFIG_KSU_SUSFS_ENABLE_LOG \
             CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
@@ -134,6 +135,11 @@ jobs:
             CONFIG_KSU_SUSFS_SUS_MAP ; do
             grep -q "^${CFG}=y" "$DEFCONFIG" || echo "${CFG}=y" >> "$DEFCONFIG"
           done
+          # CONFIG_KSU_SUSFS_SUS_KSTAT SENGAJA gak diaktifkan dulu:
+          # fs/stat.c error "implicit declaration of susfs_sus_kstat_spoof_generic_fillattr"
+          # - hunk extern declaration gagal apply, hunk pemanggilan fungsi berhasil (inkonsisten).
+          # Prioritas: baseline build sukses dulu, fitur ini ditambal manual belakangan.
+          sed -i '/^CONFIG_KSU_SUSFS_SUS_KSTAT=y/d' "$DEFCONFIG"
           if grep -q "THREAD_INFO_IN_TASK" drivers/kernelsu/Kconfig 2>/dev/null; then
             echo "CONFIG_THREAD_INFO_IN_TASK=y" >> "$DEFCONFIG"
           fi
