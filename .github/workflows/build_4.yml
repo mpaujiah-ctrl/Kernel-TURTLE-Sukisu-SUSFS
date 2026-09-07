@@ -128,6 +128,11 @@ jobs:
           echo "=== Isi defconfig terkait KSU/SUSFS ==="
           grep "CONFIG_KSU" "$DEFCONFIG"
 
+      - name: Terapkan fixup hunk SUSFS yang gagal
+        run: |
+          cp ../susfs_missing_hunks.patch .
+          patch -p1 < susfs_missing_hunks.patch
+      
       - name: Kumpulin semua file .rej (kalau ada yang gagal apply)
         working-directory: kernel
         run: |
