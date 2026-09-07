@@ -105,6 +105,18 @@ jobs:
             echo "[+] SUSFS patch selesai diproses - cek susfs_patch_log.txt & .rej kalau ada hunk gagal."
           fi
 
+      - name: Safety-net - pastikan fs/Makefile include susfs.o
+        working-directory: kernel
+        run: |
+          if grep -q "CONFIG_KSU_SUSFS.*susfs.o" fs/Makefile; then
+            echo "[+] fs/Makefile sudah benar (patch berhasil atau sudah ada bawaan)."
+          else
+            echo "" >> fs/Makefile
+            echo "obj-\$(CONFIG_KSU_SUSFS) += susfs.o" >> fs/Makefile
+            echo "[+] Baris obj-\$(CONFIG_KSU_SUSFS) += susfs.o ditambahin manual (posisi gak masalah buat Kbuild)."
+          fi
+          grep "susfs" fs/Makefile
+
       - name: Set config SUSFS
         working-directory: kernel
         run: |
