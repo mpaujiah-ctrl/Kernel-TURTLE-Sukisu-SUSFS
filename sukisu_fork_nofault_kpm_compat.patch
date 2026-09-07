@@ -1,0 +1,198 @@
+diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
+--- a/kernel/kernel_compat.h
++++ b/kernel/kernel_compat.h
+@@ -3,6 +3,92 @@
+ 
+ #include <linux/fs.h>
+ #include <linux/version.h>
++#include <linux/uaccess.h>
++
++/*
++ * strncpy_from_user_nofault / copy_from_user_nofault / copy_to_user_nofault
++ * were only added to the kernel around 5.8. Older non-GKI trees (e.g.
++ * cepheus 4.14) don't have them at all, which shows up as an implicit
++ * declaration build error. Provide equivalent fallbacks using the
++ * classic get_fs()/set_fs()/pagefault_disable() pattern.
++ */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && !defined(KSU_HAS_STRNCPY_FROM_USER_NOFAULT)
++static inline long strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count)
++{
++    mm_segment_t old_fs;
++    long ret;
++
++    if (unlikely(count <= 0))
++        return 0;
++
++    old_fs = get_fs();
++    set_fs(USER_DS);
++    pagefault_disable();
++    ret = strncpy_from_user(dst, unsafe_addr, count);
++    pagefault_enable();
++    set_fs(old_fs);
++
++    if (ret >= count) {
++        ret = count;
++        dst[ret - 1] = '\0';
++    } else if (ret > 0) {
++        ret++;
++    }
++
++    return ret;
++}
++#endif
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && !defined(KSU_HAS_COPY_FROM_USER_NOFAULT)
++static inline long copy_from_user_nofault(void *dst, const void __user *src, size_t size)
++{
++    mm_segment_t old_fs;
++    long ret;
++
++    old_fs = get_fs();
++    set_fs(USER_DS);
++    pagefault_disable();
++    ret = __copy_from_user_inatomic(dst, src, size);
++    pagefault_enable();
++    set_fs(old_fs);
++
++    return ret ? -EFAULT : 0;
++}
++
++static inline long copy_to_user_nofault(void __user *dst, const void *src, size_t size)
++{
++    mm_segment_t old_fs;
++    long ret;
++
++    old_fs = get_fs();
++    set_fs(USER_DS);
++    pagefault_disable();
++    ret = __copy_to_user_inatomic(dst, src, size);
++    pagefault_enable();
++    set_fs(old_fs);
++
++    return ret ? -EFAULT : 0;
++}
++#endif
++
++/*
++ * fallthrough: added to the kernel around 4.19/5.x
++ * (linux/compiler_attributes.h). Older trees like cepheus 4.14 don't
++ * have it, causing "use of undeclared identifier 'fallthrough'".
++ */
++#ifndef fallthrough
++#ifndef __has_attribute
++#define __has_attribute(x) __GCC4_has_attribute_##x
++#define __GCC4_has_attribute___fallthrough__ 0
++#endif
++#if __has_attribute(__fallthrough__)
++#define fallthrough __attribute__((__fallthrough__))
++#else
++#define fallthrough \
++    do {            \
++    } while (0) /* fallthrough */
++#endif
++#endif
+ 
+ /*
+  * ksu_copy_from_user_retry
+diff --git a/kernel/kpm/kpm.c b/kernel/kpm/kpm.c
+--- a/kernel/kpm/kpm.c
++++ b/kernel/kpm/kpm.c
+@@ -38,6 +38,15 @@
+ #include "kpm.h"
+ #include "compact.h"
+ 
++/* Compat: pre-5.0 kernels use access_ok(type, addr, size); the "type"
++ * argument is ignored internally on arm64 anyway, so VERIFY_READ is
++ * safe for both read and write checks. 5.0+ kernels dropped it. */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
++#define ksu_kpm_access_ok(addr, size) access_ok(VERIFY_READ, (addr), (size))
++#else
++#define ksu_kpm_access_ok(addr, size) access_ok((addr), (size))
++#endif
++
+ #define KPM_NAME_LEN 32
+ #define KPM_ARGS_LEN 1024
+ 
+@@ -134,14 +143,14 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg1, 255)) {
++        if (!ksu_kpm_access_ok(arg1, 255)) {
+             goto invalid_arg;
+         }
+ 
+         strncpy_from_user((char *)&kernel_load_path, (const char *)arg1, 255);
+ 
+         if (arg2 != 0) {
+-            if (!access_ok(arg2, 255)) {
++            if (!ksu_kpm_access_ok(arg2, 255)) {
+                 goto invalid_arg;
+             }
+ 
+@@ -160,7 +169,7 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg1, sizeof(kernel_name_buffer))) {
++        if (!ksu_kpm_access_ok(arg1, sizeof(kernel_name_buffer))) {
+             goto invalid_arg;
+         }
+ 
+@@ -180,7 +189,7 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg1, sizeof(kernel_name_buffer))) {
++        if (!ksu_kpm_access_ok(arg1, sizeof(kernel_name_buffer))) {
+             goto invalid_arg;
+         }
+ 
+@@ -191,7 +200,7 @@
+         sukisu_kpm_info((const char *)&kernel_name_buffer, (char *)&buf,
+                         sizeof(buf), &size);
+ 
+-        if (!access_ok(arg2, size)) {
++        if (!ksu_kpm_access_ok(arg2, size)) {
+             goto invalid_arg;
+         }
+ 
+@@ -206,7 +215,7 @@
+             goto exit;
+         }
+ 
+-        if (!access_ok(arg2, len)) {
++        if (!ksu_kpm_access_ok(arg2, len)) {
+             goto invalid_arg;
+         }
+ 
+@@ -224,11 +233,11 @@
+         char kpm_name[KPM_NAME_LEN] = { 0 };
+         char kpm_args[KPM_ARGS_LEN] = { 0 };
+ 
+-        if (!access_ok(arg1, sizeof(kpm_name))) {
++        if (!ksu_kpm_access_ok(arg1, sizeof(kpm_name))) {
+             goto invalid_arg;
+         }
+ 
+-        if (!access_ok(arg2, sizeof(kpm_args))) {
++        if (!ksu_kpm_access_ok(arg2, sizeof(kpm_args))) {
+             goto invalid_arg;
+         }
+ 
+@@ -288,13 +297,13 @@
+         return -EFAULT;
+     }
+ 
+-    if (!access_ok(cmd.control_code, sizeof(int))) {
++    if (!ksu_kpm_access_ok(cmd.control_code, sizeof(int))) {
+         pr_err("kpm: invalid control_code pointer %px\n",
+                (void *)cmd.control_code);
+         return -EFAULT;
+     }
+ 
+-    if (!access_ok(cmd.result_code, sizeof(int))) {
++    if (!ksu_kpm_access_ok(cmd.result_code, sizeof(int))) {
+         pr_err("kpm: invalid result_code pointer %px\n",
+                (void *)cmd.result_code);
+         return -EFAULT;
