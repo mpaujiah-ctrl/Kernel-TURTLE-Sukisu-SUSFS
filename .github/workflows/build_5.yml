@@ -70,13 +70,14 @@ jobs:
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
         run: |
+          export ARCH=arm64
           mkdir -p out
           scripts/kconfig/merge_config.sh -O out \
             "${{ env.BASE_DEFCONFIG }}" \
             "${{ env.DEVICE_FRAGMENT }}" \
             ksu_susfs_extra.config
           echo "=== Cek hasil merge ==="
-          grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS" out/.config
+          grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config
 
       - name: Update localversion
         working-directory: kernel
@@ -120,6 +121,13 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
 
           make O=out ARCH=arm64 olddefconfig
+
+          echo "=== Paksa CONFIG_NR_CPUS=8 langsung ke .config final ==="
+          sed -i '/^CONFIG_NR_CPUS=/d' out/.config
+          echo "CONFIG_NR_CPUS=8" >> out/.config
+          make O=out ARCH=arm64 olddefconfig
+          grep "^CONFIG_NR_CPUS=" out/.config
+
           make ARCH=arm64 O=out CC=clang AR=llvm-ar LD=ld.lld \
                NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
                -j"$(nproc --all)" Image.gz-dtb
