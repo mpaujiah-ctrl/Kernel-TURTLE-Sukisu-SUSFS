@@ -1,18 +1,12 @@
-# Kernel cepheus - SukiSU-Ultra (builtin/manual-hook) + SUSFS
-# Teknik diadaptasi dari JackA1ltman/NonGKI_Kernel_Build_2nd
+# Kernel cepheus - JoK3rLeE source (SukiSU-Ultra + SUSFS udah bundled)
 #
-# Perubahan vs yaml lama:
-# 1. Branch SukiSU "builtin" (bukan "old"/tracepoint) - biar hook-nya
-#    manual-hook, cocok sama SUSFS yang di-sync manual.
-# 2. Gak ada lagi base64-python monkeypatch. Semua fix dipatch pakai
-#    file .patch beneran yang ditarik dari repo JackA1ltman.
-# 3. Ada clean_hook.sh di awal - reset idempotent, aman di-rerun berkali2.
-# 4. Cek "udah dipatch belum" sebelum apply SUSFS (grep CONFIG_KSU_SUSFS).
-# 5. KERNEL_VERSION dideteksi otomatis dari Makefile, bukan hardcode.
-# 6. .rej files di-upload sebagai artifact kalau ada yang gagal apply.
-# 7. KPM/set_memory dicek dulu keberadaan filenya sebelum backport.
+# Beda besar vs source raystef66:
+# 1. SukiSU-Ultra sudah ada langsung di drivers/kernelsu, gak perlu clone/patch terpisah.
+# 2. SUSFS sudah terintegrasi native & konsisten, gak perlu patch generik terpisah.
+# 3. KPM TIDAK didukung di source ini (gak ada Kconfig-nya) - dihilangkan.
+# 4. Defconfig pakai skema base + fragment (merge_config.sh), bukan 1 file datar.
 
-name: Kernel cepheus - SukiSU-Ultra builtin + SUSFS
+name: Kernel cepheus - JoK3rLeE SukiSU-Ultra + SUSFS
 
 on:
   workflow_dispatch:
@@ -20,9 +14,9 @@ on:
 env:
   KERNEL_SOURCE: "https://github.com/JoK3rLeE/android_kernel_xiaomi_sm8150"
   KERNEL_BRANCH: "16.0-cepheus"
-  DEFCONFIG_NAME: "sm8150-perf_defconfig"
+  BASE_DEFCONFIG: "arch/arm64/configs/vendor/sm8150-perf_defconfig"
+  DEVICE_FRAGMENT: "arch/arm64/configs/vendor/xiaomi/cepheus.config"
   KERNEL_ARCH: "arm64"
-  KPM_ENABLE: "true"
 
 jobs:
   build:
@@ -31,168 +25,57 @@ jobs:
       - name: Checkout repo sendiri
         uses: actions/checkout@v4
 
-      - name: Clone kernel source (raystef66)
+      - name: Clone kernel source (JoK3rLeE)
         run: |
           git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_SOURCE }}" kernel
 
-      - name: Deteksi KERNEL_VERSION dari Makefile
+      - name: Verifikasi SukiSU-Ultra + SUSFS sudah bawaan
         working-directory: kernel
         run: |
-          KV=$(head -n 3 Makefile | grep -E 'VERSION|PATCHLEVEL' | awk '{print $3}' | paste -sd '.')
-          echo "KERNEL_VERSION=$KV" >> "$GITHUB_ENV"
-          echo "[+] Terdeteksi kernel version: $KV"
+          echo "=== drivers/kernelsu ==="
+          ls drivers/kernelsu
+          echo "=== SUSFS di fs/namespace.c ==="
+          grep -c "CONFIG_KSU_SUSFS" fs/namespace.c
+          echo "[+] Kalau dua-duanya ada isinya, source ini sudah lengkap - gak perlu clone/patch tambahan."
 
-      - name: Bersihin hook lama (clean_hook_2.sh) - biar idempotent kalau di-rerun
+      - name: Buat fragment config KSU + SUSFS
         working-directory: kernel
         run: |
-          cp ../clean_hook_2.sh ./
-          bash clean_hook_2.sh
-          echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
-          grep -rl "CONFIG_KSU" fs/ kernel/ security/ 2>/dev/null || echo "bersih"
+          cat > ksu_susfs_extra.config << 'EOF'
+          CONFIG_KSU=y
+          CONFIG_KALLSYMS=y
+          CONFIG_KALLSYMS_ALL=y
+          CONFIG_KSU_SUSFS=y
+          CONFIG_KSU_SUSFS_SUS_PATH=y
+          CONFIG_KSU_SUSFS_SUS_MOUNT=y
+          CONFIG_KSU_SUSFS_SUS_KSTAT=y
+          CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+          CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+          CONFIG_KSU_SUSFS_ENABLE_LOG=y
+          CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+          CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+          CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+          CONFIG_KSU_SUSFS_SUS_MAP=y
+          CONFIG_KSU_SUSFS_SUS_MEMFD=y
+          EOF
+          cat ksu_susfs_extra.config
 
-      - name: Integrasi SukiSU-Ultra (dari fork sendiri)
+      - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
         run: |
-          git clone --depth=1 https://github.com/mpaujiah-ctrl/SukiSU-Ultra.git /tmp/sukisu-fork
-          ln -sf /tmp/sukisu-fork/kernel drivers/kernelsu
-          grep -q "kernelsu" drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> drivers/Makefile
-          grep -q 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' drivers/Kconfig
-          echo "=== Verifikasi ==="
-          ls -la drivers/kernelsu
-          grep -i "kernelsu" drivers/Makefile drivers/Kconfig
-
-      - name: Patch kernel_umount.c missing set handler (bug upstream)
-        working-directory: kernel
-        run: |
-          cp ../kernel_umount_set_missing.patch .
-          patch -p1 < kernel_umount_set_missing.patch || true
-      
-      - name: Patch SukiSU-Ultra Fixed (compat non-static-key, dsb)
-        working-directory: kernel
-        run: |
-          cp ../sukisu_ultra_fixed_2.patch ./
-          patch -p1 < sukisu_ultra_fixed_2.patch || true
-          echo "[+] SukiSU-Ultra Fixed applied (cek .rej kalau ada di bawah)."
-
-      - name: Patch event.c strncpy compat (upstream naming berubah)
-        working-directory: kernel
-        run: |
-          cp ../sukisu_event_strncpy_compat.patch .
-          patch -p1 < sukisu_event_strncpy_compat.patch || true
-      
-      - name: Patch KPM access_ok compat (kernel lama 3-arg)
-        working-directory: kernel
-        run: |
-          cp ../kpm_access_ok_compat.patch .
-          patch -p1 < kpm_access_ok_compat.patch || true
-          echo "[+] KPM access_ok compat applied (cek .rej kalau gagal)."
-      
-      - name: Set config dasar KSU + KALLSYMS
-        working-directory: kernel
-        run: |
-          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
-          grep -q "^CONFIG_KSU=y" "$DEFCONFIG" || echo "CONFIG_KSU=y" >> "$DEFCONFIG"
-          grep -q "^CONFIG_KALLSYMS=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS=y" >> "$DEFCONFIG"
-          grep -q "^CONFIG_KALLSYMS_ALL=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG"
-          grep "CONFIG_K" "$DEFCONFIG"
-
-      - name: Clean reboot.c syntax and fix KSU
-        working-directory: kernel
-        run: |
-          echo "[+] Cleaning reboot.c using Python..."
-          python3 -c "
-          import re
-          with open('kernel/reboot.c', 'r') as f:
-              content = f.read()
-          
-          # Hapus pemanggilan ksu_handle_sys_reboot beserta tanda kurungnya secara bersih
-          cleaned = re.sub(r'ksu_handle_sys_reboot\s*\([^)]*\)\s*;?', '', content)
-          
-          with open('kernel/reboot.c', 'w') as f:
-              f.write(cleaned)
-          "
-          
-          echo "[+] Updating drivers/Makefile..."
-          sed -i 's/obj-\$(CONFIG_KSU) += kernelsu\//obj-y += kernelsu\//g' drivers/Makefile
-      
-      - name: KPM - cek set_memory.h, backport kalau belum ada
-        if: env.KPM_ENABLE == 'true'
-        working-directory: kernel
-        run: |
-          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
-          if [ -f "include/linux/set_memory.h" ]; then
-            echo "[+] set_memory.h sudah ada, skip backport."
-          else
-            cp ../set_memory_to_49_and_low.patch ./
-            patch -p1 < set_memory_to_49_and_low.patch || true
-            echo "[+] Backport set_memory.h selesai (cek .rej kalau gagal)."
-          fi
-          echo "CONFIG_KPM=y" >> "$DEFCONFIG"
-
-      - name: SUSFS - cek udah dipatch belum, apply kalau belum
-        working-directory: kernel
-        run: |
-          if grep -q "CONFIG_KSU_SUSFS" "fs/namespace.c" 2>/dev/null; then
-            echo "[-] SUSFS sudah ada di source (branch builtin bawaan), skip apply patch."
-          else
-            PATCH_FILE="../susfs_patch_to_${{ env.KERNEL_VERSION }}.patch"
-            if [ ! -f "$PATCH_FILE" ]; then
-              echo "[-] File $PATCH_FILE gak ketemu di root repo!"
-              echo "[-] Cek lagi nama file yang lo download, harus persis susfs_patch_to_${{ env.KERNEL_VERSION }}.patch"
-              exit 1
-            fi
-            cp "$PATCH_FILE" ./
-            patch -p1 --fuzz=0 < "$(basename "$PATCH_FILE")" 2>&1 | tee ../susfs_patch_log.txt
-            echo "[+] SUSFS patch selesai diproses - cek susfs_patch_log.txt & .rej kalau ada hunk gagal."
-          fi
-
-      - name: Set config SUSFS
-        working-directory: kernel
-        run: |
-          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
-          for CFG in \
-            CONFIG_KSU_SUSFS \
-            CONFIG_KSU_SUSFS_SUS_PATH \
-            CONFIG_KSU_SUSFS_SUS_MOUNT \
-            CONFIG_KSU_SUSFS_SUS_KSTAT \
-            CONFIG_KSU_SUSFS_SPOOF_UNAME \
-            CONFIG_KSU_SUSFS_ENABLE_LOG \
-            CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
-            CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
-            CONFIG_KSU_SUSFS_OPEN_REDIRECT \
-            CONFIG_KSU_SUSFS_SUS_MAP ; do
-            grep -q "^${CFG}=y" "$DEFCONFIG" || echo "${CFG}=y" >> "$DEFCONFIG"
-          done
-          if grep -q "THREAD_INFO_IN_TASK" drivers/kernelsu/Kconfig 2>/dev/null; then
-            echo "CONFIG_THREAD_INFO_IN_TASK=y" >> "$DEFCONFIG"
-          fi
-          echo "=== Isi defconfig terkait KSU/SUSFS ==="
-          grep "CONFIG_KSU" "$DEFCONFIG"
-
-      - name: Terapkan fixup hunk SUSFS yang gagal
-        working-directory: kernel
-        run: |
-          cp ../susfs_missing_hunks.patch .
-          patch -p1 < susfs_missing_hunks.patch || true
-          echo "[+] Fixup hunk selesai diproses (cek .rej kalau masih ada yang gagal)."
-      
-      - name: Kumpulin semua file .rej (kalau ada yang gagal apply)
-        working-directory: kernel
-        run: |
-          mkdir -p ../rej_collected
-          find . -name "*.rej" -exec cp --parents {} ../rej_collected/ \; 2>/dev/null || true
-          COUNT=$(find ../rej_collected -name "*.rej" | wc -l)
-          echo "[+] Ditemukan $COUNT file .rej"
-          if [ "$COUNT" -gt 0 ]; then
-            echo "::warning::Ada $COUNT hunk yang gagal di-apply, cek artifact rej-files"
-          fi
+          mkdir -p out
+          scripts/kconfig/merge_config.sh -O out \
+            "${{ env.BASE_DEFCONFIG }}" \
+            "${{ env.DEVICE_FRAGMENT }}" \
+            ksu_susfs_extra.config
+          echo "=== Cek hasil merge ==="
+          grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS" out/.config
 
       - name: Update localversion
         working-directory: kernel
         run: |
-          DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/vendor/${{ env.DEFCONFIG_NAME }}"
-          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-SukiSUUltra_Builtin+SUSFS"/' "$DEFCONFIG"
-          grep "CONFIG_LOCALVERSION" "$DEFCONFIG"
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-JoK3rLeE-SukiSUUltra+SUSFS"/' out/.config
+          grep "CONFIG_LOCALVERSION" out/.config
 
       - name: Install toolchain
         run: |
@@ -229,7 +112,7 @@ jobs:
           export STRIP=llvm-strip
           export CROSS_COMPILE=aarch64-linux-gnu-
 
-          make O=out ARCH=arm64 "${{ env.DEFCONFIG_NAME }}"
+          make O=out ARCH=arm64 olddefconfig
           make ARCH=arm64 O=out CC=clang AR=llvm-ar LD=ld.lld \
                NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
                -j"$(nproc --all)" Image.gz-dtb
@@ -237,27 +120,34 @@ jobs:
           ls out/arch/arm64/boot/Image.gz-dtb
           ls out/arch/arm64/boot/Image
 
+      - name: Kumpulin semua file .rej (jaga-jaga)
+        if: always()
+        working-directory: kernel
+        run: |
+          mkdir -p ../rej_collected
+          find . -name "*.rej" -exec cp --parents {} ../rej_collected/ \; 2>/dev/null || true
+          COUNT=$(find ../rej_collected -name "*.rej" | wc -l)
+          echo "[+] Ditemukan $COUNT file .rej"
+
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cp kernel/out/arch/arm64/boot/Image kernel-pure.img
-          cd AnyKernel3 && zip -r9 ../cepheus_SukiSUUltra_Builtin_SUSFS.zip * -x README
+          cd AnyKernel3 && zip -r9 ../cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip * -x README
 
       - name: Upload hasil build
         uses: actions/upload-artifact@v4
         with:
-          name: cepheus-SukiSUUltra-Builtin-SUSFS
+          name: cepheus-JoK3rLeE-SukiSUUltra-SUSFS
           path: |
-            cepheus_SukiSUUltra_Builtin_SUSFS.zip
+            cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel-pure.img
 
-      - name: Upload .rej files (kalau ada patch yang gagal)
+      - name: Upload .rej files (kalau ada)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: rej-files
-          path: |
-            rej_collected/
-            susfs_patch_log.txt
+          path: rej_collected/
           if-no-files-found: ignore
