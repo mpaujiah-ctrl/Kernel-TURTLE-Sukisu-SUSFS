@@ -107,8 +107,17 @@ jobs:
       - name: Cari Kconfig guard perf_trace_counters
         working-directory: kernel
         run: |
-          grep -rn "perf_trace_counters" arch/arm64/kernel/Makefile
-          grep -rn "PERF_TRACE_COUNTERS" arch/arm64/configs/vendor/ arch/arm64/Kconfig* 2>/dev/null
+          echo "=== Baris obj- di Makefile arm64/kernel ==="
+          grep -n "perf_trace_counters" arch/arm64/kernel/Makefile || echo "[!] Gak ketemu di Makefile ini"
+
+          echo "=== Cari juga di seluruh tree (siapa tau namanya beda) ==="
+          grep -rn "perf_trace_counters" --include="Makefile*" . || echo "[!] Gak ketemu di Makefile manapun"
+
+          echo "=== Cek isi file & CREATE_TRACE_POINTS-nya ==="
+          head -30 arch/arm64/kernel/perf_trace_counters.c
+
+          echo "=== Cari define guard di file itu sendiri ==="
+          grep -n "ifdef\|ifndef\|#if " arch/arm64/kernel/perf_trace_counters.c
       
       - name: Build kernel
         working-directory: kernel
