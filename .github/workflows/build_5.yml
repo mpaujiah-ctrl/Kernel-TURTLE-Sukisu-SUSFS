@@ -135,6 +135,12 @@ jobs:
           COUNT=$(find ../rej_collected -name "*.rej" | wc -l)
           echo "[+] Ditemukan $COUNT file .rej"
 
+      - name: Cari Kconfig guard perf_trace_counters
+        working-directory: kernel
+        run: |
+          grep -rn "perf_trace_counters" arch/arm64/kernel/Makefile
+          grep -rn "PERF_TRACE_COUNTERS" arch/arm64/configs/vendor/ arch/arm64/Kconfig* 2>/dev/null
+      
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
