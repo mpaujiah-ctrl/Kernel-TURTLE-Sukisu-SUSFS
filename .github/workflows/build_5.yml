@@ -38,6 +38,12 @@ jobs:
           grep -c "CONFIG_KSU_SUSFS" fs/namespace.c
           echo "[+] Kalau dua-duanya ada isinya, source ini sudah lengkap - gak perlu clone/patch tambahan."
 
+      - name: Fix dma-mapping.c unused-function (bug upstream, forward decl nyangkut)
+        working-directory: kernel
+        run: |
+          sed -i '/^static struct page \*\*__atomic_get_pages(void \*addr);$/d; /^static struct page \*\*__iommu_get_pages(void \*cpu_addr, unsigned long attrs);$/d' arch/arm64/mm/dma-mapping.c
+          grep -c "__atomic_get_pages(void \*addr);" arch/arm64/mm/dma-mapping.c || echo "[+] Forward declaration nyangkut sudah dihapus."
+
       - name: Buat fragment config KSU + SUSFS
         working-directory: kernel
         run: |
