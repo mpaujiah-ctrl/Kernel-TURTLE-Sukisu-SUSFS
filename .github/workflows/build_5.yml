@@ -48,6 +48,7 @@ jobs:
         working-directory: kernel
         run: |
           cat > ksu_susfs_extra.config << 'EOF'
+          CONFIG_NR_CPUS=8
           CONFIG_KSU=y
           CONFIG_KALLSYMS=y
           CONFIG_KALLSYMS_ALL=y
@@ -104,21 +105,6 @@ jobs:
           void dt_to_yaml(FILE *outf, struct dt_info *dti) {}
           CEOF
 
-      - name: Cari Kconfig guard perf_trace_counters
-        working-directory: kernel
-        run: |
-          echo "=== Baris obj- di Makefile arm64/kernel ==="
-          grep -n "perf_trace_counters" arch/arm64/kernel/Makefile || echo "[!] Gak ketemu di Makefile ini"
-
-          echo "=== Cari juga di seluruh tree (siapa tau namanya beda) ==="
-          grep -rn "perf_trace_counters" --include="Makefile*" . || echo "[!] Gak ketemu di Makefile manapun"
-
-          echo "=== Cek isi file & CREATE_TRACE_POINTS-nya ==="
-          head -30 arch/arm64/kernel/perf_trace_counters.c
-
-          echo "=== Cari define guard di file itu sendiri ==="
-          grep -n "ifdef\|ifndef\|#if " arch/arm64/kernel/perf_trace_counters.c
-      
       - name: Build kernel
         working-directory: kernel
         run: |
@@ -149,7 +135,7 @@ jobs:
           find . -name "*.rej" -exec cp --parents {} ../rej_collected/ \; 2>/dev/null || true
           COUNT=$(find ../rej_collected -name "*.rej" | wc -l)
           echo "[+] Ditemukan $COUNT file .rej"
-   
+
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
