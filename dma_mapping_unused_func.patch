@@ -1,0 +1,13 @@
+diff --git a/arch/arm64/mm/dma-mapping.c b/arch/arm64/mm/dma-mapping.c
+--- a/arch/arm64/mm/dma-mapping.c
++++ b/arch/arm64/mm/dma-mapping.c
+@@ -708,9 +708,6 @@
+ 	__dma_flush_area(virt, PAGE_SIZE);
+ }
+ 
+-static struct page **__atomic_get_pages(void *addr);
+-static struct page **__iommu_get_pages(void *cpu_addr, unsigned long attrs);
+-
+ static void *__iommu_alloc_attrs(struct device *dev, size_t size,
+ 				 dma_addr_t *handle, gfp_t gfp,
+ 				 unsigned long attrs)
