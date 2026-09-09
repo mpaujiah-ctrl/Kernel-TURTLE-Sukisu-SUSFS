@@ -44,6 +44,13 @@ jobs:
           sed -i '/^static struct page \*\*__atomic_get_pages(void \*addr);$/d; /^static struct page \*\*__iommu_get_pages(void \*cpu_addr, unsigned long attrs);$/d' arch/arm64/mm/dma-mapping.c
           grep -c "__atomic_get_pages(void \*addr);" arch/arm64/mm/dma-mapping.c || echo "[+] Forward declaration nyangkut sudah dihapus."
 
+      - name: Fix vfs_open/security_file_open cred mismatch (bug upstream)
+        working-directory: kernel
+        run: |
+          cp ../vfs_open_cred_mismatch.patch .
+          patch -p1 < vfs_open_cred_mismatch.patch || true
+          echo "[+] vfs_open cred plumbing sudah diperbaiki (cek .rej kalau gagal)."
+
       - name: Buat fragment config KSU + SUSFS
         working-directory: kernel
         run: |
