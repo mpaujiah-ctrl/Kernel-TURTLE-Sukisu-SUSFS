@@ -1,0 +1,58 @@
+diff --git a/fs/proc/internal.h b/fs/proc/internal.h
+--- a/fs/proc/internal.h
++++ b/fs/proc/internal.h
+@@ -58,6 +58,7 @@
+ 	int (*proc_show)(struct seq_file *m,
+ 		struct pid_namespace *ns, struct pid *pid,
+ 		struct task_struct *task);
++	char *lsm;
+ };
+ 
+ struct proc_inode {
+diff --git a/include/linux/security.h b/include/linux/security.h
+--- a/include/linux/security.h
++++ b/include/linux/security.h
+@@ -381,8 +381,8 @@
+ int security_sem_semop(struct sem_array *sma, struct sembuf *sops,
+ 			unsigned nsops, int alter);
+ void security_d_instantiate(struct dentry *dentry, struct inode *inode);
+-int security_getprocattr(struct task_struct *p, char *name, char **value);
+-int security_setprocattr(const char *name, void *value, size_t size);
++int security_getprocattr(struct task_struct *p, char *lsm, char *name, char **value);
++int security_setprocattr(char *lsm, const char *name, void *value, size_t size);
+ int security_netlink_send(struct sock *sk, struct sk_buff *skb);
+ int security_ismaclabel(const char *name);
+ int security_secid_to_secctx(u32 secid, char **secdata, u32 *seclen);
+@@ -1146,12 +1146,12 @@
+ static inline void security_d_instantiate(struct dentry *dentry, struct inode *inode)
+ { }
+ 
+-static inline int security_getprocattr(struct task_struct *p, char *name, char **value)
++static inline int security_getprocattr(struct task_struct *p, char *lsm, char *name, char **value)
+ {
+ 	return -EINVAL;
+ }
+ 
+-static inline int security_setprocattr(char *name, void *value, size_t size)
++static inline int security_setprocattr(char *lsm, const char *name, void *value, size_t size)
+ {
+ 	return -EINVAL;
+ }
+diff --git a/security/security.c b/security/security.c
+--- a/security/security.c
++++ b/security/security.c
+@@ -1285,12 +1285,12 @@
+ }
+ EXPORT_SYMBOL(security_d_instantiate);
+ 
+-int security_getprocattr(struct task_struct *p, char *name, char **value)
++int security_getprocattr(struct task_struct *p, char *lsm, char *name, char **value)
+ {
+ 	return call_int_hook(getprocattr, -EINVAL, p, name, value);
+ }
+ 
+-int security_setprocattr(const char *name, void *value, size_t size)
++int security_setprocattr(char *lsm, const char *name, void *value, size_t size)
+ {
+ 	return call_int_hook(setprocattr, -EINVAL, name, value, size);
+ }
