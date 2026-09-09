@@ -51,6 +51,13 @@ jobs:
           patch -p1 < vfs_open_cred_mismatch.patch || true
           echo "[+] vfs_open cred plumbing sudah diperbaiki (cek .rej kalau gagal)."
 
+      - name: Fix proc attr / security_getprocattr LSM mismatch (bug upstream)
+        working-directory: kernel
+        run: |
+          cp ../proc_attr_lsm_mismatch.patch .
+          patch -p1 < proc_attr_lsm_mismatch.patch || true
+          echo "[+] proc_op.lsm & security_getprocattr/setprocattr sudah diperbaiki (cek .rej kalau gagal)."
+
       - name: Buat fragment config KSU + SUSFS
         working-directory: kernel
         run: |
