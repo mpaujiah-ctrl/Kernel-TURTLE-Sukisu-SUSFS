@@ -63,6 +63,7 @@ jobs:
         run: |
           cat > ksu_susfs_extra.config << 'EOF'
           CONFIG_NR_CPUS=8
+          # CONFIG_TOUCHSCREEN_ST is not set
           CONFIG_KSU=y
           CONFIG_KALLSYMS=y
           CONFIG_KALLSYMS_ALL=y
