@@ -1,0 +1,90 @@
+diff --git a/fs/open.c b/fs/open.c
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -739,7 +739,8 @@
+ 
+ static int do_dentry_open(struct file *f,
+ 			  struct inode *inode,
+-			  int (*open)(struct inode *, struct file *))
++			  int (*open)(struct inode *, struct file *),
++			  const struct cred *cred)
+ {
+ 	static const struct file_operations empty_fops = {};
+ 	int error;
+@@ -788,7 +789,7 @@
+ 		goto cleanup_all;
+ 	}
+ 
+-	error = security_file_open(f);
++	error = security_file_open(f, cred);
+ 	if (error)
+ 		goto cleanup_all;
+ 
+@@ -859,7 +860,8 @@
+ 	BUG_ON(*opened & FILE_OPENED); /* once it's opened, it's opened */
+ 
+ 	file->f_path.dentry = dentry;
+-	error = do_dentry_open(file, d_backing_inode(dentry), open);
++	error = do_dentry_open(file, d_backing_inode(dentry), open,
++			       current_cred());
+ 	if (!error)
+ 		*opened |= FILE_OPENED;
+ 
+@@ -900,7 +902,8 @@
+  * @file: newly allocated file with f_flag initialized
+  * @cred: credentials to use
+  */
+-int vfs_open(const struct path *path, struct file *file)
++int vfs_open(const struct path *path, struct file *file,
++	     const struct cred *cred)
+ {
+ 	struct dentry *dentry = d_real(path->dentry, NULL, file->f_flags, 0);
+ 
+@@ -908,7 +911,7 @@
+ 		return PTR_ERR(dentry);
+ 
+ 	file->f_path = *path;
+-	return do_dentry_open(file, d_backing_inode(dentry), NULL);
++	return do_dentry_open(file, d_backing_inode(dentry), NULL, cred);
+ }
+ 
+ struct file *dentry_open(const struct path *path, int flags,
+@@ -925,7 +928,7 @@
+ 	f = get_empty_filp();
+ 	if (!IS_ERR(f)) {
+ 		f->f_flags = flags;
+-		error = vfs_open(path, f);
++		error = vfs_open(path, f, cred);
+ 		if (!error) {
+ 			/* from now on we need fput() to dispose of f */
+ 			error = open_check_o_direct(f);
+@@ -1076,7 +1079,7 @@
+ 		return file;
+ 
+ 	file->f_flags = oldfile->f_flags;
+-	retval = vfs_open(&oldfile->f_path, file);
++	retval = vfs_open(&oldfile->f_path, file, oldfile->f_cred);
+ 	if (retval) {
+ 		put_filp(file);
+ 		return ERR_PTR(retval);
+diff --git a/fs/namei.c b/fs/namei.c
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -3685,7 +3685,7 @@
+ 	if (error)
+ 		goto out;
+ 	BUG_ON(*opened & FILE_OPENED); /* once it's opened, it's opened */
+-	error = vfs_open(&nd->path, file);
++	error = vfs_open(&nd->path, file, current_cred());
+ 	if (error)
+ 		goto out;
+ 	*opened |= FILE_OPENED;
+@@ -3790,7 +3790,7 @@
+ 	int error = path_lookupat(nd, flags, &path);
+ 	if (!error) {
+ 		audit_inode(nd->name, path.dentry, 0);
+-		error = vfs_open(&path, file);
++		error = vfs_open(&path, file, current_cred());
+ 		path_put(&path);
+ 	}
+ 	return error;
