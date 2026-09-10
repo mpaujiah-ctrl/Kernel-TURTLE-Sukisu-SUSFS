@@ -58,6 +58,13 @@ jobs:
           patch -p1 < proc_attr_lsm_mismatch.patch || true
           echo "[+] proc_op.lsm & security_getprocattr/setprocattr sudah diperbaiki (cek .rej kalau gagal)."
 
+      - name: Fix devpts dead hook (fungsi udah di-comment tapi caller belum dihapus)
+        working-directory: kernel
+        run: |
+          cp ../devpts_dead_hook.patch .
+          patch -p1 < devpts_dead_hook.patch || true
+          echo "[+] Caller ksu_handle_devpts yang nyangkut sudah dihapus (cek .rej kalau gagal)."
+
       - name: Buat fragment config KSU + SUSFS
         working-directory: kernel
         run: |
@@ -66,6 +73,7 @@ jobs:
           # CONFIG_TOUCHSCREEN_ST is not set
           CONFIG_LTO_NONE=y
           # CONFIG_LTO_CLANG is not set
+          CONFIG_MFD_SPK_ID=y
           CONFIG_KSU=y
           CONFIG_KALLSYMS=y
           CONFIG_KALLSYMS_ALL=y
