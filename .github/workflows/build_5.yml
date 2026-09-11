@@ -151,19 +151,13 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
 
           make O=out ARCH=arm64 olddefconfig
-
-          echo "=== Paksa CONFIG_NR_CPUS=8 langsung ke .config final ==="
-          sed -i '/^CONFIG_NR_CPUS=/d' out/.config
-          echo "CONFIG_NR_CPUS=8" >> out/.config
-          make O=out ARCH=arm64 olddefconfig
-          grep "^CONFIG_NR_CPUS=" out/.config
-
           make ARCH=arm64 O=out CC=clang AR=llvm-ar LD=ld.lld \
                NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
-               -j"$(nproc --all)" Image.gz-dtb
+               -j"$(nproc --all)" Image.gz-dtb dtbo.img
 
           ls out/arch/arm64/boot/Image.gz-dtb
           ls out/arch/arm64/boot/Image
+          ls out/arch/arm64/boot/dtbo.img
 
       - name: Kumpulin semua file .rej (jaga-jaga)
         if: always()
@@ -178,6 +172,7 @@ jobs:
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cp kernel/out/arch/arm64/boot/Image kernel-pure.img
+          cp kernel/out/arch/arm64/boot/dtbo.img dtbo.img
           cd AnyKernel3 && zip -r9 ../cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip * -x README
 
       - name: Upload hasil build
@@ -188,6 +183,7 @@ jobs:
             cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel-pure.img
+            dtbo.img
 
       - name: Upload .rej files (kalau ada)
         if: always()
