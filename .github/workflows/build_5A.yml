@@ -114,31 +114,38 @@ jobs:
           sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-JoK3rLeE-SukiSUUltra+SUSFS"/' out/.config
           grep "CONFIG_LOCALVERSION" out/.config
 
-      - name: Install toolchain
+            - name: Install build dependencies + Android Clang r563880c
         run: |
           sudo apt update
           sudo apt install -y \
-          bc \
-          bison \
-          flex \
-          libssl-dev \
-          libelf-dev \
-          build-essential \
-          gcc-aarch64-linux-gnu \
-          gcc-arm-linux-gnueabi \
-          git \
-          curl \
-          xz-utils
+            bc \
+            bison \
+            flex \
+            libssl-dev \
+            libelf-dev \
+            build-essential \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi \
+            git \
+            curl \
+            xz-utils
 
-          echo "=== Clone Android LLVM toolchain r563880c ==="
-          git clone --depth=1 \
+          echo "=== Clone Android Clang prebuilts ==="
+
+          # r563880c ada sebagai folder clang-r563880c,
+          # bukan sebagai branch Git.
+          git clone \
+            --depth=1 \
+            -b android-16.0.0_r4 \
             https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
-            -b r563880c \
             android-clang
 
+          echo "=== Check toolchain directory ==="
+          ls android-clang/clang-r563880c/bin
+
           echo "=== Toolchain verification ==="
-          android-clang/bin/clang --version
-          android-clang/bin/ld.lld --version
+          android-clang/clang-r563880c/bin/clang --version
+          android-clang/clang-r563880c/bin/ld.lld --version
 
       - name: Clone AnyKernel3
         run: |
@@ -166,10 +173,11 @@ jobs:
           export ARCH=arm64
           
           # Android Clang r563880c
-          export TOOLCHAIN="${GITHUB_WORKSPACE}/android-clang"
+          export TOOLCHAIN="${GITHUB_WORKSPACE}/android-clang/clang-r563880c"
           export PATH="${TOOLCHAIN}/bin:${PATH}"
           
-          # LLVM toolchain export LLVM=1
+          # LLVM toolchain
+          export LLVM=1
           export LLVM_IAS=1
           
           export CC="${TOOLCHAIN}/bin/clang"
