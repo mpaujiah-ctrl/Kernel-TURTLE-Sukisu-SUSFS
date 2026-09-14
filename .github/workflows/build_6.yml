@@ -1,11 +1,3 @@
-# Kernel cepheus - JoK3rLeE source (SukiSU-Ultra + SUSFS udah bundled)
-#
-# Beda besar vs source raystef66:
-# 1. SukiSU-Ultra sudah ada langsung di drivers/kernelsu, gak perlu clone/patch terpisah.
-# 2. SUSFS sudah terintegrasi native & konsisten, gak perlu patch generik terpisah.
-# 3. KPM TIDAK didukung di source ini (gak ada Kconfig-nya) - dihilangkan.
-# 4. Defconfig pakai skema base + fragment (merge_config.sh), bukan 1 file datar.
-
 name: Kernel cepheus - JoK3rLeE SukiSU-Ultra + SUSFS
 
 on:
@@ -114,7 +106,7 @@ jobs:
           sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-JoK3rLeE-SukiSUUltra+SUSFS"/' out/.config
           grep "CONFIG_LOCALVERSION" out/.config
 
-            - name: Install build dependencies + Android Clang r563880c
+      - name: Install build dependencies + Android Clang r563880c
         run: |
           sudo apt update
           sudo apt install -y \
