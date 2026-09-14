@@ -114,11 +114,26 @@ jobs:
           sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-JoK3rLeE-SukiSUUltra+SUSFS"/' out/.config
           grep "CONFIG_LOCALVERSION" out/.config
 
-      - name: Install toolchain
+      - name: Install toolchain (AOSP resmi, clang-r383902 + gcc aarch64-4.9 - sesuai build.config.common source ini)
         run: |
           sudo apt update
-          sudo apt install -y clang lld llvm bc bison flex libssl-dev libelf-dev build-essential
-          sudo apt install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+          sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential
+
+          echo "=== Download clang-r383902 (AOSP resmi, sesuai build.config.common) ==="
+          mkdir -p toolchain/clang
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android11-release/clang-r383902.tar.gz -O clang.tar.gz
+          tar -xzf clang.tar.gz -C toolchain/clang
+          rm clang.tar.gz
+
+          echo "=== Download GCC aarch64-linux-android-4.9 (AOSP resmi, sesuai build.config.aarch64) ==="
+          git clone -b android11-release --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 toolchain/gcc64
+
+          echo "=== Verifikasi ==="
+          toolchain/clang/bin/clang --version
+          toolchain/gcc64/bin/aarch64-linux-android-ld --version | head -1
+
+          echo "TOOLCHAIN_CLANG=$PWD/toolchain/clang/bin" >> "$GITHUB_ENV"
+          echo "TOOLCHAIN_GCC=$PWD/toolchain/gcc64/bin" >> "$GITHUB_ENV"
 
       - name: Clone AnyKernel3
         run: |
@@ -143,20 +158,21 @@ jobs:
       - name: Build kernel
         working-directory: kernel
         run: |
+          export PATH="$TOOLCHAIN_CLANG:$TOOLCHAIN_GCC:$PATH"
           export ARCH=arm64
-          export LLVM=1
           export CC=clang
-          export AR=llvm-ar
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          export CROSS_COMPILE=aarch64-linux-android-
           export LD=ld.lld
+          export AR=llvm-ar
           export NM=llvm-nm
           export OBJCOPY=llvm-objcopy
           export OBJDUMP=llvm-objdump
           export STRIP=llvm-strip
-          export CROSS_COMPILE=aarch64-linux-gnu-
 
           make O=out ARCH=arm64 olddefconfig
-          make ARCH=arm64 O=out CC=clang AR=llvm-ar LD=ld.lld \
-               NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+          make ARCH=arm64 O=out CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- \
+               LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
                -j"$(nproc --all)" Image.gz-dtb dtbo.img
 
           ls out/arch/arm64/boot/Image.gz-dtb
