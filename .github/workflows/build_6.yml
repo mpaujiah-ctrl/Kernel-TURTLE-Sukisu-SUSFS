@@ -97,41 +97,19 @@ jobs:
       
           echo "=== KSU CALLERS ==="
           grep -RInE 'ksu_handle_|ksu_post_fs_data|ksu_selinux_hide_handle_' \
-            fs kernel security drivers 2>/dev/null || true
-      
+            fs kernel security drivers 2>/dev/null || true    
+     
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== core/init.c ==="
-          sed -n '1,180p' drivers/kernelsu/core/init.c
-      
-          echo "=== ksud_integration.c INIT/RC PATH ==="
-          sed -n '1,260p' drivers/kernelsu/runtime/ksud_integration.c
-      
-          echo "=== ksud_integration.c END ==="
-          sed -n '800,860p' drivers/kernelsu/runtime/ksud_integration.c
-      
-          echo "=== hook_manager setresuid ==="
-          sed -n '320,375p' drivers/kernelsu/hook/hook_manager.c
-      
-      - name: Inspect KSU init paths
-        working-directory: kernel
-        run: |
-          echo "=== core/init.c ==="
-          sed -n '1,180p' drivers/kernelsu/core/init.c
-      
-          echo "=== ksud_integration.c 1-260 ==="
-          sed -n '1,260p' drivers/kernelsu/runtime/ksud_integration.c
-      
-          echo "=== ksud_integration.c 800-860 ==="
-          sed -n '800,860p' drivers/kernelsu/runtime/ksud_integration.c
-      
-          echo "=== hook_manager.c 320-375 ==="
-          sed -n '320,375p' drivers/kernelsu/hook/hook_manager.c
-      
-          echo "=== KSU CALLERS ==="
-          grep -RInE 'ksu_handle_|ksu_post_fs_data|ksu_selinux_hide_handle_' \
-            fs kernel security drivers 2>/dev/null || true
+          echo "=== stop_init_rc_hook CALLERS ==="
+          grep -RIn "stop_init_rc_hook" drivers/kernelsu fs kernel security drivers --exclude-dir=.git
+          
+          echo "=== ksu_initialize_selinux ==="
+          grep -RInE "ksu_initialize_selinux|fake_status_initialize_key|ksu_selinux_hide_handle" drivers/kernelsu
+          
+          echo "=== INITCALLS KSU ==="
+          grep -RInE "module_init|core_initcall|postcore_initcall|arch_initcall|subsys_initcall|fs_initcall|rootfs_initcall|device_initcall|late_initcall" drivers/kernelsu
       
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
