@@ -88,6 +88,13 @@ jobs:
           EOF
           cat ksu_susfs_extra.config
 
+      - name: Audit KSU init and hooks
+        working-directory: kernel
+        run: |
+          echo "=== KSU INIT / HOOKS ==="
+          grep -RInE 'ksu_(init|post_fs_data|late_init|handle_|selinux_hide_handle_)|fake_status_initialize_key|module_init|core_initcall|fs_initcall' \
+            drivers/kernelsu 2>/dev/null || true
+      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
         run: |
@@ -98,22 +105,7 @@ jobs:
             "${{ env.DEVICE_FRAGMENT }}" \
             ksu_susfs_extra.config
           echo "=== Cek hasil merge ==="
-          grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config
-
-      - name: Check final Kernel config
-        working-directory: kernel
-        run: |
-          echo "=== KSU / HOOK ==="
-          grep -E '^CONFIG_KSU(=|_)|^# CONFIG_KSU_' out/.config || true
-      
-          echo "=== KPROBES ==="
-          grep -E '^(CONFIG_KPROBES|CONFIG_KRETPROBES|CONFIG_HAVE_SYSCALL_TRACEPOINTS)=' out/.config || true
-      
-          echo "=== LTO ==="
-          grep -E '^(CONFIG_LTO|CONFIG_LTO_CLANG|CONFIG_THINLTO)' out/.config || true
-      
-          echo "=== HZ ==="
-          grep -E '^CONFIG_HZ' out/.config || true
+          grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config    
       
       - name: Update localversion
         working-directory: kernel
