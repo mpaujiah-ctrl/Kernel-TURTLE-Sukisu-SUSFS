@@ -99,6 +99,21 @@ jobs:
           grep -RInE 'ksu_handle_|ksu_post_fs_data|ksu_selinux_hide_handle_' \
             fs kernel security drivers 2>/dev/null || true
       
+      - name: Inspect KSU init paths
+        working-directory: kernel
+        run: |
+          echo "=== core/init.c ==="
+          sed -n '1,180p' drivers/kernelsu/core/init.c
+      
+          echo "=== ksud_integration.c INIT/RC PATH ==="
+          sed -n '1,260p' drivers/kernelsu/runtime/ksud_integration.c
+      
+          echo "=== ksud_integration.c END ==="
+          sed -n '800,860p' drivers/kernelsu/runtime/ksud_integration.c
+      
+          echo "=== hook_manager setresuid ==="
+          sed -n '320,375p' drivers/kernelsu/hook/hook_manager.c
+      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
         run: |
