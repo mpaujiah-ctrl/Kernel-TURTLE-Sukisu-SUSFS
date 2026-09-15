@@ -5,7 +5,7 @@ on:
 
 env:
   KERNEL_SOURCE: "https://github.com/JoK3rLeE/android_kernel_xiaomi_sm8150"
-  KERNEL_BRANCH: "16.0-cepheus"
+  KERNEL_BRANCH: "17.0-cepheus"
   BASE_DEFCONFIG: "arch/arm64/configs/vendor/sm8150-perf_defconfig"
   DEVICE_FRAGMENT: "arch/arm64/configs/vendor/xiaomi/cepheus.config"
   KERNEL_ARCH: "arm64"
