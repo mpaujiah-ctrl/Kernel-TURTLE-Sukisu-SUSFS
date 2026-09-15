@@ -121,7 +121,8 @@ jobs:
 
           echo "=== Download clang-r563880c (AOSP resmi, cocok sama build string kernel yang jalan) ==="
           mkdir -p toolchain/clang
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r563880c.tar.gz -O clang.tar.gz
+          ls -la clang.tar.gz
           tar -xzf clang.tar.gz -C toolchain/clang
           rm clang.tar.gz
 
