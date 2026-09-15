@@ -119,12 +119,14 @@ jobs:
           sudo apt update
           sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential
 
-          echo "=== Download clang-r563880c (AOSP resmi, cocok sama build string kernel yang jalan) ==="
-          mkdir -p toolchain/clang
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
-          ls -la clang.tar.gz
-          tar -xzf clang.tar.gz -C toolchain/clang
-          rm clang.tar.gz
+          echo "=== Download clang-r563880c (AOSP resmi, cocok sama build string kernel yang jalan) via sparse git clone ==="
+          mkdir -p toolchain
+          git clone --filter=blob:none --sparse --depth=1 -b main https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang_repo
+          cd clang_repo
+          git sparse-checkout set clang-r563880c
+          cd ..
+          mv clang_repo/clang-r563880c toolchain/clang
+          rm -rf clang_repo
 
           echo "=== Verifikasi ==="
           toolchain/clang/bin/clang --version
