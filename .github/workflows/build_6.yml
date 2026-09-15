@@ -102,15 +102,17 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== stop_init_rc_hook CALLERS ==="
-          grep -RIn "stop_init_rc_hook" drivers/kernelsu fs kernel security drivers --exclude-dir=.git
+          echo "=== KSU CORE INIT ==="
+          sed -n '1,230p' drivers/kernelsu/core/init.c
           
-          echo "=== ksu_initialize_selinux ==="
-          grep -RInE "ksu_initialize_selinux|fake_status_initialize_key|ksu_selinux_hide_handle" drivers/kernelsu
-          
-          echo "=== INITCALLS KSU ==="
-          grep -RInE "module_init|core_initcall|postcore_initcall|arch_initcall|subsys_initcall|fs_initcall|rootfs_initcall|device_initcall|late_initcall" drivers/kernelsu
-      
+          echo "=== INIT FUNCTIONS / CALLS ==="
+          grep -RInE \
+          'kernelsu_init_early|kernelsu_init\(|ksu_init\(|ksud|selinux|init_rc_hook' \
+          drivers/kernelsu/core drivers/kernelsu/runtime drivers/kernelsu/feature
+
+          echo "=== LINE 439 CONTEXT ==="
+          sed -n '400,455p' drivers/kernelsu/runtime/ksud_integration.c
+     
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
         run: |
