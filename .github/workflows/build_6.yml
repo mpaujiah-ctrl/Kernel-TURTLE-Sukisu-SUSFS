@@ -5,7 +5,7 @@ on:
 
 env:
   KERNEL_SOURCE: "https://github.com/JoK3rLeE/android_kernel_xiaomi_sm8150"
-  KERNEL_BRANCH: "17.0-cepheus"
+  KERNEL_BRANCH: "16.0-cepheus"
   BASE_DEFCONFIG: "arch/arm64/configs/vendor/sm8150-perf_defconfig"
   DEVICE_FRAGMENT: "arch/arm64/configs/vendor/xiaomi/cepheus.config"
   KERNEL_ARCH: "arm64"
@@ -100,6 +100,20 @@ jobs:
           echo "=== Cek hasil merge ==="
           grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config
 
+      - name: Check final Kernel config
+        run: |
+          echo "=== KSU / HOOK ==="
+          grep -E '^CONFIG_KSU(=|_)|^# CONFIG_KSU_' out/.config || true
+      
+          echo "=== KPROBES ==="
+          grep -E '^(CONFIG_KPROBES|CONFIG_KRETPROBES|CONFIG_HAVE_SYSCALL_TRACEPOINTS)=' out/.config || true
+      
+          echo "=== LTO ==="
+          grep -E '^(CONFIG_LTO|CONFIG_LTO_CLANG|CONFIG_THINLTO)' out/.config || true
+      
+          echo "=== HZ ==="
+          grep -E '^CONFIG_HZ' out/.config || true
+      
       - name: Update localversion
         working-directory: kernel
         run: |
