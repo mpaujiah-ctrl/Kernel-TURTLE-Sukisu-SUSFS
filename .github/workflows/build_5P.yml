@@ -57,6 +57,12 @@ jobs:
           sed -i '/^static struct page \*\*__atomic_get_pages(void \*addr);$/d; /^static struct page \*\*__iommu_get_pages(void \*cpu_addr, unsigned long attrs);$/d' arch/arm64/mm/dma-mapping.c
           grep -c "__atomic_get_pages(void \*addr);" arch/arm64/mm/dma-mapping.c || echo "[+] Forward declaration nyangkut sudah dihapus."
 
+      - name: Keluarin device andromeda yang dtsi-nya syntax error (bukan device kita, ikut ke-build bareng karena CONFIG_BUILD_ARM64_DT_OVERLAY)
+        working-directory: kernel
+        run: |
+          sed -i '/andromeda-sm8150/d' arch/arm64/boot/dts/qcom/Makefile
+          grep -c "andromeda-sm8150" arch/arm64/boot/dts/qcom/Makefile || echo "[+] andromeda sudah dikeluarkan dari daftar build."
+
       - name: Buat fragment config KSU + SUSFS
         working-directory: kernel
         run: |
