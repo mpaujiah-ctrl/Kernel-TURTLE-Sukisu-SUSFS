@@ -102,8 +102,30 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== KERNELSU_INIT FULL ==="
-          sed -n '87,165p' drivers/kernelsu/core/init.c
+          echo "=== INIT FUNCTION DEFINITIONS ==="
+
+          grep -RInE \
+          '(^|[[:space:]])(int|void)[[:space:]]+ksu_(syscall_hook_manager_init|lsm_hook_init|allowlist_init|throne_tracker_init|ksud_init|file_wrapper_init)[[:space:]]*\(' \
+          drivers/kernelsu || true
+          
+          echo "=== SUSFS INIT ==="
+          
+          grep -RIn -B10 -A80 \
+          'void susfs_init\|int susfs_init' \
+          drivers/kernelsu fs include 2>/dev/null || true
+
+          echo "=== LSM HOOK INIT ==="
+          grep -n -B20 -A100 \
+          'ksu_lsm_hook_init' \
+          drivers/kernelsu/hook/*.c drivers/kernelsu/hook/*.h 2>/dev/null || true
+          
+          echo "=== LSM HOOK FILE ==="
+          sed -n '1,220p' drivers/kernelsu/hook/lsm_hooks.c
+
+          echo "=== KSUD INIT ==="
+          grep -RIn -B15 -A100 \
+          'ksu_ksud_init' \
+          drivers/kernelsu || true
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
