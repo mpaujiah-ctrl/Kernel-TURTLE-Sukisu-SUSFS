@@ -103,17 +103,17 @@ jobs:
         working-directory: kernel
         run: |
           echo "=== SELINUX RULE HELPERS ==="
-          grep -n -B5 -A35 -E '^int ksu_(type|permissive|typeattribute)|^static.*ksu_(type|permissive|typeattribute)' \
-              drivers/kernelsu/selinux/rules.c
-          
+          grep -n -B5 -A35 -E 'ksu_(type|permissive|typeattribute)' \
+            drivers/kernelsu/selinux/rules.c || true
+      
           echo "=== APPLY RULES 178-260 ==="
           sed -n '178,260p' drivers/kernelsu/selinux/rules.c
-          
+      
           echo "=== SELINUX INIT ORDER ==="
           sed -n '90,135p' drivers/kernelsu/core/init.c
-          
+      
           echo "=== NEED OWN STACKPROTECTOR ==="
-          grep -RIn 'NEED_OWN_STACKPROTECTOR' drivers/kernelsu
+          grep -RIn 'NEED_OWN_STACKPROTECTOR' drivers/kernelsu || true
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
