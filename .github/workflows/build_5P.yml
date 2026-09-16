@@ -166,11 +166,10 @@ jobs:
           make O=out ARCH=arm64 olddefconfig
           make ARCH=arm64 O=out CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- \
                LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
-               -j"$(nproc --all)" Image.gz-dtb dtbo.img
+               -j"$(nproc --all)" Image.gz-dtb
 
           ls out/arch/arm64/boot/Image.gz-dtb
-          ls out/arch/arm64/boot/Image
-          ls out/arch/arm64/boot/dtbo.img
+          ls out/arch/arm64/boot/Image       
 
       - name: Kumpulin semua file .rej (jaga-jaga)
         if: always()
@@ -184,8 +183,7 @@ jobs:
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-          cp kernel/out/arch/arm64/boot/Image kernel-pure.img
-          cp kernel/out/arch/arm64/boot/dtbo.img dtbo.img
+          cp kernel/out/arch/arm64/boot/Image kernel-pure.img        
           cd AnyKernel3 && zip -r9 ../cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip * -x README
 
       - name: Upload hasil build
@@ -195,8 +193,7 @@ jobs:
           path: |
             cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
-            kernel-pure.img
-            dtbo.img
+            kernel-pure.img         
 
       - name: Upload .rej files (kalau ada)
         if: always()
