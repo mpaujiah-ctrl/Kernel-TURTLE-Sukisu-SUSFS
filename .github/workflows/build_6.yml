@@ -102,24 +102,14 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== SUSFS INIT ==="
+          echo "=== SUSFS UNAME INIT ==="
           grep -RIn -B15 -A100 \
-              'susfs_init[[:space:]]*(' \
+              'susfs_my_uname_init[[:space:]]*(' \
               fs drivers include 2>/dev/null || true
           
-          echo "=== LSM INIT ==="
-          grep -RIn -B15 -A100 \
+          echo "=== LSM HOOK INIT ==="
+          grep -RIn -B15 -A120 \
               'ksu_lsm_hook_init[[:space:]]*(' \
-              drivers/kernelsu fs security include 2>/dev/null || true
-          
-          echo "=== SYSCALL HOOK INIT ==="
-          grep -RIn -B15 -A100 \
-              'ksu_syscall_hook_manager_init[[:space:]]*(' \
-              drivers/kernelsu 2>/dev/null || true
-          
-          echo "=== FILE WRAPPER INIT ==="
-          grep -RIn -B15 -A100 \
-              'ksu_file_wrapper_init[[:space:]]*(' \
               drivers/kernelsu 2>/dev/null || true
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
