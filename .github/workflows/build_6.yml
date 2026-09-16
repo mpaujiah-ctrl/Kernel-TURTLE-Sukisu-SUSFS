@@ -102,18 +102,8 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== INIT PREPROCESSOR CONDITION ==="
-          sed -n '55,95p' drivers/kernelsu/core/init.c
-          
-          echo "=== EARLY INIT FUNCTION ==="
-          grep -n -B10 -A100 'kernelsu_init_early' drivers/kernelsu/core/init.c
-          
-          echo "=== ALL INIT FUNCTIONS ==="
-          grep -n -E '^(static |int |void )?(__init )?kernelsu_init|kernelsu_init_early|module_init' \
-              drivers/kernelsu/core/init.c
-          
-          echo "=== CONFIG MODULE STATE ==="
-          grep -nE '^CONFIG_KSU=|^CONFIG_MODULES=' out/.config
+          echo "=== KERNELSU_INIT FULL ==="
+          sed -n '87,165p' drivers/kernelsu/core/init.c
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
