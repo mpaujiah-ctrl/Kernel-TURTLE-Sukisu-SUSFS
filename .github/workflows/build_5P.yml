@@ -103,7 +103,7 @@ jobs:
       - name: Update localversion
         working-directory: kernel
         run: |
-          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-JoK3rLeE-SukiSUUltra+SUSFS"/' out/.config
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-JLSukiSUSFS"/' out/.config
           grep "CONFIG_LOCALVERSION" out/.config
 
       - name: Install toolchain (Clang 21 / r563880c - PERSIS sama kayak kernel yang lagi jalan di device)
@@ -170,7 +170,7 @@ jobs:
 
           ls out/arch/arm64/boot/Image.gz-dtb
           ls out/arch/arm64/boot/Image
-          
+
       - name: Kumpulin semua file .rej (jaga-jaga)
         if: always()
         working-directory: kernel
@@ -183,7 +183,7 @@ jobs:
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-          cp kernel/out/arch/arm64/boot/Image kernel-pure.img         
+          cp kernel/out/arch/arm64/boot/Image kernel-pure.img
           cd AnyKernel3 && zip -r9 ../cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip * -x README
 
       - name: Upload hasil build
@@ -194,7 +194,7 @@ jobs:
             cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel-pure.img
-            
+
       - name: Upload .rej files (kalau ada)
         if: always()
         uses: actions/upload-artifact@v4
