@@ -102,11 +102,16 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== FULL EXECVEAT KSUD ==="
-          sed -n '175,245p' drivers/kernelsu/runtime/ksud_integration.c
+          echo "=== KSU CORE INIT FULL ==="
+          sed -n '80,225p' drivers/kernelsu/core/init.c
           
-          echo "=== KSU INIT 90-130 ==="
-          sed -n '90,130p' drivers/kernelsu/core/init.c
+          echo "=== SELINUX STATE FUNCTIONS ==="
+          grep -RInE \
+          'apply_kernelsu_rules|cache_sid|setup_ksu_cred|ksu_cred' \
+          drivers/kernelsu
+          
+          echo "=== EXECVE 220-330 ==="
+          sed -n '220,330p' drivers/kernelsu/runtime/ksud_integration.c
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
