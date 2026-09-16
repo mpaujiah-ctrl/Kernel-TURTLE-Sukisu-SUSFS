@@ -102,14 +102,15 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== SELINUX RULES ==="
-          sed -n '70,270p' drivers/kernelsu/selinux/rules.c
+          echo "=== APPLY RULES FULL ==="
+          sed -n '150,270p' drivers/kernelsu/selinux/rules.c
           
-          echo "=== SELINUX CREDENTIAL/SID ==="
-          sed -n '60,180p' drivers/kernelsu/selinux/selinux.c
+          echo "=== FEATURE EXIT ==="
+          grep -RInE 'ksu_feature_(init|exit)|ksu_cred' drivers/kernelsu/feature drivers/kernelsu/core drivers/kernelsu/selinux
           
-          echo "=== INIT EARLY/FULL END ==="
-          sed -n '90,215p' drivers/kernelsu/core/init.c
+          echo "=== KSU CRED LIFETIME ==="
+          sed -n '90,140p' drivers/kernelsu/core/init.c
+          sed -n '185,210p' drivers/kernelsu/core/init.c
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
