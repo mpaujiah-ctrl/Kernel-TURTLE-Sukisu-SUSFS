@@ -102,14 +102,14 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== SUSFS UNAME INIT ==="
-          grep -RIn -B15 -A100 \
-              'susfs_my_uname_init[[:space:]]*(' \
-              fs drivers include 2>/dev/null || true
-          
           echo "=== LSM HOOK INIT ==="
-          grep -RIn -B15 -A120 \
+          grep -RIn -B20 -A180 \
               'ksu_lsm_hook_init[[:space:]]*(' \
+              drivers/kernelsu 2>/dev/null || true
+          
+          echo "=== LSM HOOK REGISTRATION ==="
+          grep -RInE \
+              'security_add_hooks|register.*hook|lsm.*hook|struct security_hook_list|security_hook_heads' \
               drivers/kernelsu 2>/dev/null || true
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
