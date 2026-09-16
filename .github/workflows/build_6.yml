@@ -102,16 +102,16 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== LSM HOOK INIT 380-445 ==="
-          sed -n '380,445p' drivers/kernelsu/hook/lsm_hooks.c
+          echo "=== LSM COMPATIBILITY BRANCH ==="
+          sed -n '20,80p' drivers/kernelsu/hook/lsm_hooks.c
+          sed -n '220,440p' drivers/kernelsu/hook/lsm_hooks.c
           
-          echo "=== DETHRONE SETPROCATTR 250-380 ==="
-          sed -n '250,380p' drivers/kernelsu/hook/lsm_hooks.c
+          echo "=== LSM INIT EXACT ==="
+          sed -n '415,438p' drivers/kernelsu/hook/lsm_hooks.c
 
-          echo "=== SELINUX SETPROCATTR STATE ==="
-          grep -RInE \
-            'selinux_setprocattr_fn|ksu_dethrone_selinux_setprocattr|ksu_hooks_setprocattr|target_slot|ksu_lsmid' \
-            drivers/kernelsu 2>/dev/null || true
+          echo "=== LSM COMPAT MACROS ==="
+          grep -nE '#if|#ifdef|#ifndef|#elif|#else|#endif|LINUX_VERSION_CODE|CONFIG_' \
+              drivers/kernelsu/hook/lsm_hooks.c | head -120
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
