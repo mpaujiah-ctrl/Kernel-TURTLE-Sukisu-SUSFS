@@ -63,13 +63,14 @@ jobs:
           sed -i '/andromeda-sm8150/d' arch/arm64/boot/dts/qcom/Makefile
           grep -c "andromeda-sm8150" arch/arm64/boot/dts/qcom/Makefile || echo "[+] andromeda sudah dikeluarkan dari daftar build."
 
-      - name: Ganti scripts/dtc dengan versi dari 16.0-cepheus (dtc bundled 17.0-cepheus gagal parse plugin/overlay &label{})
+      - name: Ganti file logika dtc dengan versi dari 16.0-cepheus (dtc 17.0-cepheus gagal parse plugin/overlay &label{})
         working-directory: kernel
         run: |
           rm -rf /tmp/dtc16
           git clone --depth=1 -b 16.0-cepheus "${{ env.KERNEL_SOURCE }}" /tmp/dtc16
-          rm -rf scripts/dtc
-          cp -r /tmp/dtc16/scripts/dtc scripts/dtc
+          for f in checks.c dtc-lexer.l dtc-lexer.lex.c_shipped dtc-parser.tab.c_shipped dtc-parser.y dtc.c dtc.h flattree.c livetree.c srcpos.c srcpos.h util.h; do
+            cp "/tmp/dtc16/scripts/dtc/$f" "scripts/dtc/$f"
+          done
           rm -rf /tmp/dtc16
 
       - name: Buat fragment config KSU + SUSFS
