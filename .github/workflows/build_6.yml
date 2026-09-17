@@ -87,31 +87,22 @@ jobs:
           CONFIG_KSU_SUSFS_SUS_MEMFD=y
           EOF
           cat ksu_susfs_extra.config
-
-      - name: Audit KSU init and hooks
-        working-directory: kernel
-        run: |
-          echo "=== KSU INIT / HOOKS ==="
-          grep -RInE 'ksu_(init|post_fs_data|late_init|handle_|selinux_hide_handle_)|fake_status_initialize_key|module_init|core_initcall|fs_initcall' \
-            drivers/kernelsu 2>/dev/null || true
-      
-          echo "=== KSU CALLERS ==="
-          grep -RInE 'ksu_handle_|ksu_post_fs_data|ksu_selinux_hide_handle_' \
-            fs kernel security drivers 2>/dev/null || true    
-     
+    
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== LSM COMPATIBILITY BRANCH ==="
-          sed -n '20,80p' drivers/kernelsu/hook/lsm_hooks.c
-          sed -n '220,440p' drivers/kernelsu/hook/lsm_hooks.c
+          echo "=== KSU LSM COMPAT DEFINE ==="
+          grep -RInE \
+            'KSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST|SECURITY_DELETE_HOOKS|struct security_hook_list' \
+            drivers/kernelsu include security 2>/dev/null || true
           
-          echo "=== LSM INIT EXACT ==="
-          sed -n '415,438p' drivers/kernelsu/hook/lsm_hooks.c
-
-          echo "=== LSM COMPAT MACROS ==="
-          grep -nE '#if|#ifdef|#ifndef|#elif|#else|#endif|LINUX_VERSION_CODE|CONFIG_' \
-              drivers/kernelsu/hook/lsm_hooks.c | head -120
+          echo "=== KERNEL SECURITY HOOK STRUCT ==="
+          grep -n -A15 -B5 \
+            'struct security_hook_list' \
+            include/linux/lsm_hooks.h 2>/dev/null || true
+          
+          echo "=== COMPAT MAKEFILE ==="
+          sed -n '225,255p' drivers/kernelsu/Makefile
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
