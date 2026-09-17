@@ -91,18 +91,10 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== KSU LSM COMPAT DEFINE ==="
-          grep -RInE \
-            'KSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST|SECURITY_DELETE_HOOKS|struct security_hook_list' \
-            drivers/kernelsu include security 2>/dev/null || true
-          
-          echo "=== KERNEL SECURITY HOOK STRUCT ==="
-          grep -n -A15 -B5 \
-            'struct security_hook_list' \
-            include/linux/lsm_hooks.h 2>/dev/null || true
-          
-          echo "=== COMPAT MAKEFILE ==="
-          sed -n '225,255p' drivers/kernelsu/Makefile
+          echo "=== HLIST DETHRONE ==="
+          sed -n '180,320p' drivers/kernelsu/hook/lsm_hooks.c
+          echo "=== SECURITY HOOK STRUCT ==="
+          sed -n '1990,2020p' include/linux/lsm_hooks.h
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
