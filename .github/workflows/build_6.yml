@@ -108,17 +108,15 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== KSU HLIST MACRO ==="
-          grep -RIn "KSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST" \
-              drivers/kernelsu include 2>/dev/null || true
+          echo "=== MAKEFILE AROUND HLIST DEFINE ==="
+          sed -n '225,250p' drivers/kernelsu/Makefile
           
-          echo "=== PREPROCESSOR RESULT ==="
-          grep -RInE \
-              'struct security_hook_list|struct hlist_node|struct list_head' \
-              include/linux/lsm_hooks.h drivers/kernelsu/hook/lsm_hooks.c 2>/dev/null | head -80
+          echo "=== ACTUAL SECURITY_HOOK_LIST ==="
+          grep -n -A12 -B3 "struct security_hook_list" \
+              include/linux/lsm_hooks.h
           
-          echo "=== MAKEFILE DETECTOR ==="
-          sed -n '95,110p' drivers/kernelsu/Makefile
+          echo "=== HLIST NODE IN LSM HOOKS ==="
+          grep -n "hlist_node" include/linux/lsm_hooks.h
       
       - name: Update localversion
         working-directory: kernel
