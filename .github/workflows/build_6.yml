@@ -70,6 +70,11 @@ jobs:
           CONFIG_PSTORE_RAM=y
           CONFIG_PSTORE_CONSOLE=y
           CONFIG_PSTORE_PMSG=y
+          CONFIG_EROFS_FS=y
+          CONFIG_EROFS_FS_XATTR=y
+          CONFIG_EROFS_FS_POSIX_ACL=y
+          CONFIG_EROFS_FS_SECURITY=y
+          CONFIG_EROFS_FS_ZIP=y
           CONFIG_KSU=y
           CONFIG_KALLSYMS=y
           CONFIG_KALLSYMS_ALL=y
