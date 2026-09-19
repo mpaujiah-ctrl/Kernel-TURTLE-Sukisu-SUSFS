@@ -108,14 +108,17 @@ jobs:
       - name: Inspect KSU init paths
         working-directory: kernel
         run: |
-          echo "=== EROFS ==="
-          grep -E 'CONFIG_EROFS|CONFIG_EROFS_FS' out/.config || true
+          echo "=== KSU HLIST MACRO ==="
+          grep -RIn "KSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST" \
+              drivers/kernelsu include 2>/dev/null || true
           
-          echo "=== EXT4 ==="
-          grep -E 'CONFIG_EXT4|CONFIG_EXT4_FS' out/.config || true
+          echo "=== PREPROCESSOR RESULT ==="
+          grep -RInE \
+              'struct security_hook_list|struct hlist_node|struct list_head' \
+              include/linux/lsm_hooks.h drivers/kernelsu/hook/lsm_hooks.c 2>/dev/null | head -80
           
-          echo "=== F2FS ==="
-          grep -E 'CONFIG_F2FS|CONFIG_F2FS_FS' out/.config || true
+          echo "=== MAKEFILE DETECTOR ==="
+          sed -n '95,110p' drivers/kernelsu/Makefile
       
       - name: Update localversion
         working-directory: kernel
