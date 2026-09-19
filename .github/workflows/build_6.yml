@@ -86,19 +86,7 @@ jobs:
           CONFIG_KSU_SUSFS_SUS_MAP=y
           CONFIG_KSU_SUSFS_SUS_MEMFD=y
           EOF
-          cat ksu_susfs_extra.config
-    
-      - name: Inspect KSU init paths
-        working-directory: kernel
-        run: |
-          echo "=== EROFS ==="
-          grep -E 'CONFIG_EROFS|CONFIG_EROFS_FS' out/.config || true
-          
-          echo "=== EXT4 ==="
-          grep -E 'CONFIG_EXT4|CONFIG_EXT4_FS' out/.config || true
-          
-          echo "=== F2FS ==="
-          grep -E 'CONFIG_F2FS|CONFIG_F2FS_FS' out/.config || true
+          cat ksu_susfs_extra.config    
      
       - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
         working-directory: kernel
@@ -111,6 +99,18 @@ jobs:
             ksu_susfs_extra.config
           echo "=== Cek hasil merge ==="
           grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config    
+      
+       - name: Inspect KSU init paths
+        working-directory: kernel
+        run: |
+          echo "=== EROFS ==="
+          grep -E 'CONFIG_EROFS|CONFIG_EROFS_FS' out/.config || true
+          
+          echo "=== EXT4 ==="
+          grep -E 'CONFIG_EXT4|CONFIG_EXT4_FS' out/.config || true
+          
+          echo "=== F2FS ==="
+          grep -E 'CONFIG_F2FS|CONFIG_F2FS_FS' out/.config || true
       
       - name: Update localversion
         working-directory: kernel
