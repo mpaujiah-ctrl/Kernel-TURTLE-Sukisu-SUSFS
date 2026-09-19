@@ -100,7 +100,7 @@ jobs:
           echo "=== Cek hasil merge ==="
           grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config    
       
-       - name: Inspect KSU init paths
+      - name: Inspect KSU init paths
         working-directory: kernel
         run: |
           echo "=== EROFS ==="
