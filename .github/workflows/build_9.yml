@@ -83,23 +83,13 @@ jobs:
 
     - name: Package AnyKernel3
       run: |
-        git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AK3
-        rm -rf AK3/.git
-
-        # Copy hasil build sesuai tipe image yang dihasilkan
-        if [ -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
-          cp out/arch/arm64/boot/Image.gz-dtb AK3/
-        elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
-          cp out/arch/arm64/boot/Image.gz AK3/
-        else
-          cp out/arch/arm64/boot/Image AK3/
-        fi
-
-        # Sesuaikan device name di anykernel.sh untuk cepheus
-        sed -i 's/device.name1=.*/device.name1=cepheus/' AK3/anykernel.sh
-
-        cd AK3
-        zip -r9 ../cepheus-kernel-plain.zip *
+        git clone https://github.com/osm0sis/AnyKernel3 --depth=1
+         cp anykernel.sh AnyKernel3/anykernel.sh
+         cp ak3-core.sh AnyKernel3/tools/ak3-core.sh
+         cat AnyKernel3/anykernel.sh
+         cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+         cp kernel/out/arch/arm64/boot/Image kernel-pure.img
+         cd AnyKernel3 && zip -r9 ../cepheus-kernel-plain.zip * -x README
 
     - name: Upload Kernel Artifact
       uses: actions/upload-artifact@v4
