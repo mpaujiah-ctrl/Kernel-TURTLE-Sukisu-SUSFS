@@ -1,112 +1,157 @@
-name: Build Stock/Plain Kernel Cepheus
+name: Kernel cepheus - JoK3rLeE KSU Bawaan
 
 on:
   workflow_dispatch:
 
+env:
+  KERNEL_SOURCE: "https://github.com/JoK3rLeE/android_kernel_xiaomi_sm8150"
+  KERNEL_BRANCH: "17.0-cepheus"
+  BASE_DEFCONFIG: "arch/arm64/configs/vendor/sm8150-perf_defconfig"
+  DEVICE_FRAGMENT: "arch/arm64/configs/vendor/xiaomi/cepheus.config"
+  KERNEL_ARCH: "arm64"
+
 jobs:
   build:
-    name: Build Kernel
     runs-on: ubuntu-22.04
-
     steps:
-    - name: Checkout Kernel Source
-      uses: actions/checkout@v4
-      with:
-        repository: JoK3rLeE/android_kernel_xiaomi_sm8150
-        ref: 17.0-cepheus
-        fetch-depth: 1
+      - name: Checkout repo sendiri
+        uses: actions/checkout@v4
 
-    - name: Setup Build Environment
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses-dev \
-          libelf-dev zip unzip curl git ccache repo rawtherapee
+      - name: Clone kernel source (commit persis kernel yang jalan)
+        run: |
+          git init kernel
+          cd kernel
+          git remote add origin "${{ env.KERNEL_SOURCE }}"
+          git fetch --depth=1 origin 683b437c39781770eeb9e916ee365848e73ae6a1
+          git checkout FETCH_HEAD
+      
+      - name: Fix dma-mapping.c unused-function (bug upstream, forward decl nyangkut)
+        working-directory: kernel
+        run: |
+          sed -i '/^static struct page \*\*__atomic_get_pages(void \*addr);$/d; /^static struct page \*\*__iommu_get_pages(void \*cpu_addr, unsigned long attrs);$/d' arch/arm64/mm/dma-mapping.c
+          grep -c "__atomic_get_pages(void \*addr);" arch/arm64/mm/dma-mapping.c || echo "[+] Forward declaration nyangkut sudah dihapus."
 
-    - name: Download Toolchains (Clang & GCC)
-      run: |
-        mkdir -p $GITHUB_WORKSPACE/toolchains
-        cd $GITHUB_WORKSPACE/toolchains
+      - name: Keluarin device andromeda yang dtsi-nya syntax error (bukan device kita, ikut ke-build bareng karena CONFIG_BUILD_ARM64_DT_OVERLAY)
+        working-directory: kernel
+        run: |
+          sed -i '/andromeda-sm8150/d' arch/arm64/boot/dts/qcom/Makefile
+          grep -c "andromeda-sm8150" arch/arm64/boot/dts/qcom/Makefile || echo "[+] andromeda sudah dikeluarkan dari daftar build."
 
-        # Clone Clang r563880c via AOSP release tag khusus (android-16.0.0_r4)
-        git clone \
-          --depth=1 \
-          -b android-16.0.0_r4 \
-          https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
-          android-clang
+      - name: Ganti file logika dtc dengan versi dari 16.0-cepheus (dtc 17.0-cepheus gagal parse plugin/overlay &label{})
+        working-directory: kernel
+        run: |
+          rm -rf /tmp/dtc16
+          git clone --depth=1 -b 16.0-cepheus "${{ env.KERNEL_SOURCE }}" /tmp/dtc16
+          for f in checks.c dtc-lexer.l dtc-lexer.lex.c_shipped dtc-parser.tab.c_shipped dtc-parser.y dtc.c dtc.h flattree.c livetree.c srcpos.c srcpos.h util.h; do
+            cp "/tmp/dtc16/scripts/dtc/$f" "scripts/dtc/$f"
+          done
+          rm -rf /tmp/dtc16      
 
-        # Pindahkan folder clang-r563880c
-        mkdir clang
-        cp -r android-clang/clang-r563880c/* clang/
-        rm -rf android-clang
-
-        # Download GCC 64-bit & 32-bit Cross-Compilers
-        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android12-release --depth=1 gcc64
-        git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android12-release --depth=1 gcc32
+      - name: Merge defconfig (persis seperti ROM)
+        working-directory: kernel
+        run: |
+          export ARCH=arm64
+          mkdir -p out
+          scripts/kconfig/merge_config.sh -O out \
+            arch/arm64/configs/vendor/sm8150-perf_defconfig \
+            arch/arm64/configs/vendor/xiaomi/sm8150-common.config \
+            arch/arm64/configs/vendor/xiaomi/cepheus.config
+          make O=out ARCH=arm64 olddefconfig
+          grep -E "^CONFIG_(KSU|KSU_MANUAL_HOOK|KSU_SUSFS|INITRAMFS_IGNORE_SKIP_FLAG|EROFS_FS|QCA_CLD_WLAN|LTO_NONE)=|^CONFIG_CMDLINE=" out/.config
     
-    - name: Build Kernel
-      run: |
-        export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
-        export ARCH=arm64
-        export SUBARCH=arm64
-        export CC=clang
-        export LLVM=1
-        export LLVM_IAS=1
-        export CLANG_TRIPLE=aarch64-linux-gnu-
-        export CROSS_COMPILE=aarch64-linux-android-
-        export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+      - name: Install toolchain (Clang 21 / r563880c - PERSIS sama kayak kernel yang lagi jalan di device)
+        run: |
+          sudo apt update
+          sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential gcc-aarch64-linux-gnu
 
-        export KCFLAGS="-Wno-error"
-        export KCPPFLAGS="-Wno-error"
+          echo "=== Download clang-r563880c (AOSP resmi, cocok sama build string kernel yang jalan) via sparse git clone di commit spesifik ==="
+          mkdir -p toolchain
+          git clone --filter=blob:none --sparse --no-checkout https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang_repo
+          cd clang_repo
+          git fetch --depth=1 origin f8439f0628d799092dd07df440a6334cab28939c
+          git checkout FETCH_HEAD
+          git sparse-checkout set clang-r563880c
+          cd ..
+          ls clang_repo/
+          mv clang_repo/clang-r563880c toolchain/clang
+          rm -rf clang_repo
 
-        # Patch USB PD Policy Engine
-        sed -i 's/pd->verifed/0/g' drivers/usb/pd/policy_engine.c || true
-        sed -i 's/pd->verified/0/g' drivers/usb/pd/policy_engine.c || true
+          echo "=== Verifikasi ==="
+          toolchain/clang/bin/clang --version
 
-        # Revert perubahan manual di apr_elliptic.c
-        git checkout -- techpack/audio/dsp/apr_elliptic.c || true
+          echo "TOOLCHAIN_CLANG=$PWD/toolchain/clang/bin" >> "$GITHUB_ENV"
 
-        # Lewati penyusunan file apr_elliptic.o di level Makefile audio
-        sed -i 's/apr_elliptic.o//g' techpack/audio/dsp/Makefile || true
-        sed -i 's/dtbo-y/dtbo-disabled/g' arch/arm64/boot/dts/qcom/Makefile || true
+      - name: Clone AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3
+          echo "=== Ganti anykernel.sh & ak3-core.sh bawaan (generic, buat OMAP/tuna) dengan punya InfiniR (proven working buat cepheus) ==="
+          cp anykernel.sh AnyKernel3/anykernel.sh
+          cp ak3-core.sh AnyKernel3/tools/ak3-core.sh
+          cat AnyKernel3/anykernel.sh
 
-        mkdir -p out
+      - name: Fix yamltree.c (stub, buat host toolchain baru)
+        working-directory: kernel
+        run: |
+          cat > scripts/dtc/yamltree.c << 'CEOF'
+          #include <stdio.h>
+          #include <stdlib.h>
 
-        # Load defconfig vendor
-        make O=out vendor/sm8150-perf_defconfig
+          struct dt_info;
 
-        # Nonaktifkan config driver audio elliptic & kamera spectra eksternal
-        ./scripts/config --file out/.config --disable CONFIG_AUDIO_ELLIPTIC
-        ./scripts/config --file out/.config --disable CONFIG_SPECTRA_CAMERA
+          void dt_to_yaml(FILE *outf, struct dt_info *dti) {}
+          CEOF
 
-        # Kompilasi khusus target Image.gz-dtb
-        make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error" Image.gz-dtb || \
-        make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error" Image.gz
+      - name: Build kernel
+        working-directory: kernel
+        run: |
+          export PATH="$TOOLCHAIN_CLANG:$PATH"
+          export ARCH=arm64
+          export CC=clang
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export LD=ld.lld
+          export AR=llvm-ar
+          export NM=llvm-nm
+          export OBJCOPY=llvm-objcopy
+          export OBJDUMP=llvm-objdump
+          export STRIP=llvm-strip
 
-    - name: Check Build Output
-      run: |
-        if [ -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
-          echo "IMAGE_TYPE=Image.gz-dtb" >> $GITHUB_ENV
-        elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
-          echo "IMAGE_TYPE=Image.gz" >> $GITHUB_ENV
-        elif [ -f "out/arch/arm64/boot/Image" ]; then
-          echo "IMAGE_TYPE=Image" >> $GITHUB_ENV
-        else
-          echo "Kernel image tidak ditemukan! Kompilasi gagal."
-          exit 1
-        fi
+          make O=out ARCH=arm64 olddefconfig
+          make ARCH=arm64 O=out CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- \
+               LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+               -j"$(nproc --all)" Image.gz-dtb
 
-    - name: Package AnyKernel3
-      run: |
-        git clone https://github.com/osm0sis/AnyKernel3 --depth=1
-         cp anykernel.sh AnyKernel3/anykernel.sh
-         cp ak3-core.sh AnyKernel3/tools/ak3-core.sh
-         cat AnyKernel3/anykernel.sh
-         cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-         cp kernel/out/arch/arm64/boot/Image kernel-pure.img
-         cd AnyKernel3 && zip -r9 ../cepheus-kernel-plain.zip * -x README
+          ls out/arch/arm64/boot/Image.gz-dtb
+          ls out/arch/arm64/boot/Image
 
-    - name: Upload Kernel Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: cepheus-kernel-plain
-        path: cepheus-kernel-plain.zip
+      - name: Kumpulin semua file .rej (jaga-jaga)
+        if: always()
+        working-directory: kernel
+        run: |
+          mkdir -p ../rej_collected
+          find . -name "*.rej" -exec cp --parents {} ../rej_collected/ \; 2>/dev/null || true
+          COUNT=$(find ../rej_collected -name "*.rej" | wc -l)
+          echo "[+] Ditemukan $COUNT file .rej"
+
+      - name: Pack AnyKernel3
+        run: |
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          cp kernel/out/arch/arm64/boot/Image kernel-pure.img
+          cd AnyKernel3 && zip -r9 ../cepheus_JoK3rLeE_Plain.zip * -x README
+
+      - name: Upload hasil build
+        uses: actions/upload-artifact@v4
+        with:
+          name: cepheus-JoK3rLeE-Plain
+          path: |
+            cepheus_JoK3rLeE_Plain.zip
+            kernel/out/arch/arm64/boot/Image.gz-dtb
+            kernel-pure.img
+
+      - name: Upload .rej files (kalau ada)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rej-files
+          path: rej_collected/
+          if-no-files-found: ignore
