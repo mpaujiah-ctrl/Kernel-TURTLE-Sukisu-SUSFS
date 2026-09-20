@@ -52,14 +52,14 @@ jobs:
           export LLVM=1
           export LLVM_IAS=1
           
-          export CC="${TOOLCHAIN}/bin/clang"
-          export CXX="${TOOLCHAIN}/bin/clang++"
-          export LD="${TOOLCHAIN}/bin/ld.lld"
-          export AR="${TOOLCHAIN}/bin/llvm-ar"
-          export NM="${TOOLCHAIN}/bin/llvm-nm"
-          export OBJCOPY="${TOOLCHAIN}/bin/llvm-objcopy"
-          export OBJDUMP="${TOOLCHAIN}/bin/llvm-objdump"
-          export STRIP="${TOOLCHAIN}/bin/llvm-strip"
+          export CC=clang
+          export CXX=clang++
+          export LD=ld.lld
+          export AR=llvm-ar
+          export NM=llvm-nm
+          export OBJCOPY=llvm-objcopy
+          export OBJDUMP=llvm-objdump
+          export STRIP=llvm-strip
           
           # Cross compiler compatibility
           export CROSS_COMPILE=aarch64-linux-gnu-
