@@ -27,18 +27,21 @@ jobs:
         mkdir -p $GITHUB_WORKSPACE/toolchains
         cd $GITHUB_WORKSPACE/toolchains
 
-        # Download Clang r563880c via git clone efisien (--filter=blob:none + --depth=1)
-        git clone --depth=1 --filter=blob:none https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b main clang-raw
-        
-        # Ekstrak folder r563880c
+        # Clone Clang r563880c via AOSP release tag khusus (android-16.0.0_r4)
+        git clone \
+          --depth=1 \
+          -b android-16.0.0_r4 \
+          https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+          android-clang
+
+        # Pindahkan folder clang-r563880c
         mkdir clang
-        cp -r clang-raw/clang-r563880c/* clang/
-        rm -rf clang-raw
+        cp -r android-clang/clang-r563880c/* clang/
+        rm -rf android-clang
 
         # Download GCC 64-bit & 32-bit Cross-Compilers
         git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android12-release --depth=1 gcc64
         git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android12-release --depth=1 gcc32
-
     - name: Build Kernel
       run: |
         export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
