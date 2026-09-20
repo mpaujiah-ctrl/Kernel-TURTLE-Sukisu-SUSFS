@@ -47,11 +47,7 @@ jobs:
       run: |
         export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
         export ARCH=arm64
-          
-          # Android Clang r563880c
-          export TOOLCHAIN="${GITHUB_WORKSPACE}/android-clang/clang-r563880c"
-          export PATH="${TOOLCHAIN}/bin:${PATH}"
-          
+                 
           # LLVM toolchain
           export LLVM=1
           export LLVM_IAS=1
