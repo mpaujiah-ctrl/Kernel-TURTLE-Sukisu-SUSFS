@@ -27,17 +27,13 @@ jobs:
         mkdir -p $GITHUB_WORKSPACE/toolchains
         cd $GITHUB_WORKSPACE/toolchains
 
-        # Download AOSP Clang r563880c langsung dari Google Storage CDN (Tanpa 400 Bad Request)
-        wget https://commondatastorage.googleapis.com/android-clangs/clang-r563880c.tar.bz2 -O clang.tar.bz2 || \
-        wget https://raw.githubusercontent.com/noprod/clang-r563880c/main/clang-r563880c.tar.gz -O clang.tar.gz || \
-        curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/main/clang-r563880c.tar.gz
-
+        # Download Clang r563880c via git clone efisien (--filter=blob:none + --depth=1)
+        git clone --depth=1 --filter=blob:none https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b main clang-raw
+        
+        # Ekstrak folder r563880c
         mkdir clang
-        if [ -f clang.tar.bz2 ]; then
-          tar -xjf clang.tar.bz2 -C clang
-        else
-          tar -xzf clang.tar.gz -C clang
-        fi
+        cp -r clang-raw/clang-r563880c/* clang/
+        rm -rf clang-raw
 
         # Download GCC 64-bit & 32-bit Cross-Compilers
         git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android12-release --depth=1 gcc64
