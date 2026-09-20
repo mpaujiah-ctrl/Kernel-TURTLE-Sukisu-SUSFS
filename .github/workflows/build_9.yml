@@ -67,6 +67,7 @@ jobs:
 
         # Lewati penyusunan file apr_elliptic.o di level Makefile audio
         sed -i 's/apr_elliptic.o//g' techpack/audio/dsp/Makefile || true
+        sed -i 's/dtbo-y/dtbo-disabled/g' arch/arm64/boot/dts/qcom/Makefile || true
 
         mkdir -p out
 
