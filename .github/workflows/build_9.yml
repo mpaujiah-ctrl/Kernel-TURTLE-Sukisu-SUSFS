@@ -58,13 +58,13 @@ jobs:
         export KCFLAGS="-Wno-error"
         export KCPPFLAGS="-Wno-error"
 
-        # Patch menyeluruh semua bentuk pemanggilan pd->verified di policy_engine.c
+        # Patch menyeluruh mencakup penulisan 'verifed' maupun 'verified'
+        sed -i 's/pd->verifed/0/g' drivers/usb/pd/policy_engine.c || true
         sed -i 's/pd->verified/0/g' drivers/usb/pd/policy_engine.c || true
-        sed -i 's/!pd->verified/1/g' drivers/usb/pd/policy_engine.c || true
 
         mkdir -p out
 
-        # Load defconfig
+        # Load defconfig vendor
         make O=out vendor/sm8150-perf_defconfig
 
         # Jalankan kompilasi khusus target Image.gz-dtb
