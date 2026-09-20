@@ -84,9 +84,10 @@ jobs:
           export ARCH=arm64
           mkdir -p out
           scripts/kconfig/merge_config.sh -O out \
-            "${{ env.BASE_DEFCONFIG }}" \
+            arch/arm64/configs/vendor/sm8150-perf_defconfig \
+            arch/arm64/configs/vendor/xiaomi/sm8150-common.config \
             "${{ env.DEVICE_FRAGMENT }}" \
-            plain_extra.config
+            plain_extra.config    # isi: # CONFIG_KSU is not set
           echo "=== Cek hasil merge ==="
           grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS\|CONFIG_EROFS_FS=y" out/.config
 
