@@ -58,16 +58,23 @@ jobs:
         export KCFLAGS="-Wno-error"
         export KCPPFLAGS="-Wno-error"
 
-        # Patch menyeluruh mencakup penulisan 'verifed' maupun 'verified'
+        # 1. Patch USB PD policy_engine
         sed -i 's/pd->verifed/0/g' drivers/usb/pd/policy_engine.c || true
         sed -i 's/pd->verified/0/g' drivers/usb/pd/policy_engine.c || true
+
+        # 2. Patch Fix Undefined Symbol 'elus_afe' pada Techpack Audio
+        sed -i 's/elus_afe/0/g' techpack/audio/dsp/apr_elliptic.c || true
 
         mkdir -p out
 
         # Load defconfig vendor
         make O=out vendor/sm8150-perf_defconfig
 
-        # Jalankan kompilasi khusus target Image.gz-dtb
+        # Matikan config driver elliptic audio & dtbo ekstra yang memicu error
+        ./scripts/config --file out/.config --disable CONFIG_AUDIO_ELLIPTIC
+        ./scripts/config --file out/.config --disable CONFIG_SPECTRA_CAMERA
+
+        # Kompilasi langsung spesifik target Image.gz-dtb
         make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error" Image.gz-dtb || \
         make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error" Image.gz
 
