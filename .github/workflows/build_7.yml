@@ -1,11 +1,24 @@
-name: Kernel cepheus - JoK3rLeE SukiSU-Ultra + SUSFS
+# Kernel cepheus - JoK3rLeE source, PLAIN (TANPA SukiSU-Ultra/SUSFS/KSU)
+#
+# Eksperimen isolasi: build kernel branch 17.0-cepheus TANPA nyalain
+# CONFIG_KSU/CONFIG_KSU_SUSFS sama sekali. drivers/kernelsu tetap ada di
+# source (bundled), tapi karena CONFIG_KSU gak di-set, seluruh driver itu
+# gak ikut ke-compile - jadi ini kernel paling "bersih" yang bisa kita
+# hasilkan dari source ini, buat mastiin apakah root modification yang
+# bikin bootloop, atau ada masalah lain yang lebih dalam.
+#
+# Semua fix build yang udah kekonfirmasi perlu tetap dipertahankan:
+# dma-mapping.c, andromeda exclusion, dtc swap, EROFS_FS, pstore,
+# NR_CPUS, touchscreen, LTO_NONE, toolchain Clang 21 (r563880c).
+
+name: Kernel cepheus - JoK3rLeE PLAIN (no KSU)
 
 on:
   workflow_dispatch:
 
 env:
   KERNEL_SOURCE: "https://github.com/JoK3rLeE/android_kernel_xiaomi_sm8150"
-  KERNEL_BRANCH: "16.0-cepheus"
+  KERNEL_BRANCH: "17.0-cepheus"
   BASE_DEFCONFIG: "arch/arm64/configs/vendor/sm8150-perf_defconfig"
   DEVICE_FRAGMENT: "arch/arm64/configs/vendor/xiaomi/cepheus.config"
   KERNEL_ARCH: "arm64"
@@ -21,46 +34,32 @@ jobs:
         run: |
           git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_SOURCE }}" kernel
 
-      - name: Verifikasi SukiSU-Ultra + SUSFS sudah bawaan
-        working-directory: kernel
-        run: |
-          echo "=== drivers/kernelsu ==="
-          ls drivers/kernelsu
-          echo "=== SUSFS di fs/namespace.c ==="
-          grep -c "CONFIG_KSU_SUSFS" fs/namespace.c
-          echo "[+] Kalau dua-duanya ada isinya, source ini sudah lengkap - gak perlu clone/patch tambahan."
-
       - name: Fix dma-mapping.c unused-function (bug upstream, forward decl nyangkut)
         working-directory: kernel
         run: |
           sed -i '/^static struct page \*\*__atomic_get_pages(void \*addr);$/d; /^static struct page \*\*__iommu_get_pages(void \*cpu_addr, unsigned long attrs);$/d' arch/arm64/mm/dma-mapping.c
           grep -c "__atomic_get_pages(void \*addr);" arch/arm64/mm/dma-mapping.c || echo "[+] Forward declaration nyangkut sudah dihapus."
 
-      - name: Fix vfs_open/security_file_open cred mismatch (bug upstream)
+      - name: Keluarin device andromeda yang dtsi-nya syntax error (bukan device kita, ikut ke-build bareng karena CONFIG_BUILD_ARM64_DT_OVERLAY)
         working-directory: kernel
         run: |
-          cp ../vfs_open_cred_mismatch.patch .
-          patch -p1 < vfs_open_cred_mismatch.patch || true
-          echo "[+] vfs_open cred plumbing sudah diperbaiki (cek .rej kalau gagal)."
+          sed -i '/andromeda-sm8150/d' arch/arm64/boot/dts/qcom/Makefile
+          grep -c "andromeda-sm8150" arch/arm64/boot/dts/qcom/Makefile || echo "[+] andromeda sudah dikeluarkan dari daftar build."
 
-      - name: Fix proc attr / security_getprocattr LSM mismatch (bug upstream)
+      - name: Ganti file logika dtc dengan versi dari 16.0-cepheus (dtc 17.0-cepheus gagal parse plugin/overlay &label{})
         working-directory: kernel
         run: |
-          cp ../proc_attr_lsm_mismatch.patch .
-          patch -p1 < proc_attr_lsm_mismatch.patch || true
-          echo "[+] proc_op.lsm & security_getprocattr/setprocattr sudah diperbaiki (cek .rej kalau gagal)."
+          rm -rf /tmp/dtc16
+          git clone --depth=1 -b 16.0-cepheus "${{ env.KERNEL_SOURCE }}" /tmp/dtc16
+          for f in checks.c dtc-lexer.l dtc-lexer.lex.c_shipped dtc-parser.tab.c_shipped dtc-parser.y dtc.c dtc.h flattree.c livetree.c srcpos.c srcpos.h util.h; do
+            cp "/tmp/dtc16/scripts/dtc/$f" "scripts/dtc/$f"
+          done
+          rm -rf /tmp/dtc16
 
-      - name: Fix devpts dead hook (fungsi udah di-comment tapi caller belum dihapus)
+      - name: Buat fragment config (TANPA KSU/SUSFS sama sekali)
         working-directory: kernel
         run: |
-          cp ../devpts_dead_hook.patch .
-          patch -p1 < devpts_dead_hook.patch || true
-          echo "[+] Caller ksu_handle_devpts yang nyangkut sudah dihapus (cek .rej kalau gagal)."
-
-      - name: Buat fragment config KSU + SUSFS
-        working-directory: kernel
-        run: |
-          cat > ksu_susfs_extra.config << 'EOF'
+          cat > plain_extra.config << 'EOF'
           CONFIG_NR_CPUS=8
           # CONFIG_TOUCHSCREEN_ST is not set
           CONFIG_LTO_NONE=y
@@ -76,24 +75,10 @@ jobs:
           CONFIG_EROFS_FS_SECURITY=y
           CONFIG_EROFS_FS_ZIP=y
           # CONFIG_KSU is not set
-          CONFIG_KALLSYMS=y
-          CONFIG_KALLSYMS_ALL=y
-          # CONFIG_KSU_SUSFS is not set
-          # CONFIG_KSU_SUSFS_SUS_PATH is not set
-          # CONFIG_KSU_SUSFS_SUS_MOUNT is not set
-          # CONFIG_KSU_SUSFS_SUS_KSTAT is not set
-          # CONFIG_KSU_SUSFS_TRY_UMOUNT is not set
-          # CONFIG_KSU_SUSFS_SPOOF_UNAME is not set
-          # CONFIG_KSU_SUSFS_ENABLE_LOG is not set
-          # CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS is not set
-          # CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG is not set
-          # CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set
-          # CONFIG_KSU_SUSFS_SUS_MAP is not set
-          # CONFIG_KSU_SUSFS_SUS_MEMFD is not set
           EOF
-          cat ksu_susfs_extra.config    
-     
-      - name: Merge defconfig (base + fragment cepheus + fragment KSU/SUSFS)
+          cat plain_extra.config
+
+      - name: Merge defconfig (base + fragment cepheus + fragment plain)
         working-directory: kernel
         run: |
           export ARCH=arm64
@@ -101,61 +86,37 @@ jobs:
           scripts/kconfig/merge_config.sh -O out \
             "${{ env.BASE_DEFCONFIG }}" \
             "${{ env.DEVICE_FRAGMENT }}" \
-            ksu_susfs_extra.config
+            plain_extra.config
           echo "=== Cek hasil merge ==="
-          grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config    
-      
-      - name: Inspect KSU init paths
-        working-directory: kernel
-        run: |
-          echo "=== LSM HOOK GIT DIFF ==="
-          git diff -- include/linux/lsm_hooks.h
-          
-          echo "=== HLIST DETECTOR MESSAGE ==="
-          grep -RIn "security_hook_list - hlist_node found" . 2>/dev/null || true
-          
-          echo "=== HLIST MACRO DEFINITIONS ==="
-          grep -RIn "KSU_COMPAT_SECURITY_DELETE_HOOKS_HLIST" \
-              . --exclude-dir=.git 2>/dev/null || true          
-      
+          grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS\|CONFIG_EROFS_FS=y" out/.config
+
       - name: Update localversion
         working-directory: kernel
         run: |
-          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-cepheus-JoK3rLeE-SukiSUUltra+SUSFS"/' out/.config
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-JLPlain"/' out/.config
           grep "CONFIG_LOCALVERSION" out/.config
 
-      - name: Install build dependencies + Android Clang r563880c
+      - name: Install toolchain (Clang 21 / r563880c - PERSIS sama kayak kernel yang lagi jalan di device)
         run: |
           sudo apt update
-          sudo apt install -y \
-            bc \
-            bison \
-            flex \
-            libssl-dev \
-            libelf-dev \
-            build-essential \
-            gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi \
-            git \
-            curl \
-            xz-utils
+          sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential gcc-aarch64-linux-gnu
 
-          echo "=== Clone Android Clang prebuilts ==="
+          echo "=== Download clang-r563880c (AOSP resmi, cocok sama build string kernel yang jalan) via sparse git clone di commit spesifik ==="
+          mkdir -p toolchain
+          git clone --filter=blob:none --sparse --no-checkout https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang_repo
+          cd clang_repo
+          git fetch --depth=1 origin f8439f0628d799092dd07df440a6334cab28939c
+          git checkout FETCH_HEAD
+          git sparse-checkout set clang-r563880c
+          cd ..
+          ls clang_repo/
+          mv clang_repo/clang-r563880c toolchain/clang
+          rm -rf clang_repo
 
-          # r563880c ada sebagai folder clang-r563880c,
-          # bukan sebagai branch Git.
-          git clone \
-            --depth=1 \
-            -b android-16.0.0_r4 \
-            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
-            android-clang
+          echo "=== Verifikasi ==="
+          toolchain/clang/bin/clang --version
 
-          echo "=== Check toolchain directory ==="
-          ls android-clang/clang-r563880c/bin
-
-          echo "=== Toolchain verification ==="
-          android-clang/clang-r563880c/bin/clang --version
-          android-clang/clang-r563880c/bin/ld.lld --version
+          echo "TOOLCHAIN_CLANG=$PWD/toolchain/clang/bin" >> "$GITHUB_ENV"
 
       - name: Clone AnyKernel3
         run: |
@@ -180,64 +141,25 @@ jobs:
       - name: Build kernel
         working-directory: kernel
         run: |
+          export PATH="$TOOLCHAIN_CLANG:$PATH"
           export ARCH=arm64
-          
-          # Android Clang r563880c
-          export TOOLCHAIN="${GITHUB_WORKSPACE}/android-clang/clang-r563880c"
-          export PATH="${TOOLCHAIN}/bin:${PATH}"
-          
-          # LLVM toolchain
-          export LLVM=1
-          export LLVM_IAS=1
-          
-          export CC="${TOOLCHAIN}/bin/clang"
-          export CXX="${TOOLCHAIN}/bin/clang++"
-          export LD="${TOOLCHAIN}/bin/ld.lld"
-          export AR="${TOOLCHAIN}/bin/llvm-ar"
-          export NM="${TOOLCHAIN}/bin/llvm-nm"
-          export OBJCOPY="${TOOLCHAIN}/bin/llvm-objcopy"
-          export OBJDUMP="${TOOLCHAIN}/bin/llvm-objdump"
-          export STRIP="${TOOLCHAIN}/bin/llvm-strip"
-          
-          # Cross compiler compatibility
+          export CC=clang
+          export CLANG_TRIPLE=aarch64-linux-gnu-
           export CROSS_COMPILE=aarch64-linux-gnu-
-          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-          
-          echo "=== Compiler verification ==="
-          "${CC}" --version
-          "${LD}" --version
-          "${AR}" --version
-          
-          echo "=== Build config ==="
-          echo "CC=${CC}"
-          echo "LD=${LD}"
-          echo "AR=${AR}"
-          echo "NM=${NM}"
-          echo "LLVM=${LLVM}"
-          echo "LLVM_IAS=${LLVM_IAS}"
-          echo "CROSS_COMPILE=${CROSS_COMPILE}"
-          
+          export LD=ld.lld
+          export AR=llvm-ar
+          export NM=llvm-nm
+          export OBJCOPY=llvm-objcopy
+          export OBJDUMP=llvm-objdump
+          export STRIP=llvm-strip
+
           make O=out ARCH=arm64 olddefconfig
-          
-          make ARCH=arm64 \
-               O=out \
-               CC="${CC}" \
-               AR="${AR}" \
-               LD="${LD}" \
-               NM="${NM}" \
-               OBJCOPY="${OBJCOPY}" \
-               OBJDUMP="${OBJDUMP}" \
-               STRIP="${STRIP}" \
-               CROSS_COMPILE="${CROSS_COMPILE}" \
-               CROSS_COMPILE_ARM32="${CROSS_COMPILE_ARM32}" \
-               LLVM=1 \
-               LLVM_IAS=1 \
-               -j"$(nproc --all)" \
-               Image.gz-dtb dtbo.img
+          make ARCH=arm64 O=out CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- \
+               LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+               -j"$(nproc --all)" Image.gz-dtb
 
           ls out/arch/arm64/boot/Image.gz-dtb
           ls out/arch/arm64/boot/Image
-          ls out/arch/arm64/boot/dtbo.img
 
       - name: Kumpulin semua file .rej (jaga-jaga)
         if: always()
@@ -252,18 +174,16 @@ jobs:
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cp kernel/out/arch/arm64/boot/Image kernel-pure.img
-          cp kernel/out/arch/arm64/boot/dtbo.img dtbo.img
-          cd AnyKernel3 && zip -r9 ../cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip * -x README
+          cd AnyKernel3 && zip -r9 ../cepheus_JoK3rLeE_Plain.zip * -x README
 
       - name: Upload hasil build
         uses: actions/upload-artifact@v4
         with:
-          name: cepheus-JoK3rLeE-SukiSUUltra-SUSFS
+          name: cepheus-JoK3rLeE-Plain
           path: |
-            cepheus_JoK3rLeE_SukiSUUltra_SUSFS.zip
+            cepheus_JoK3rLeE_Plain.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel-pure.img
-            dtbo.img
 
       - name: Upload .rej files (kalau ada)
         if: always()
