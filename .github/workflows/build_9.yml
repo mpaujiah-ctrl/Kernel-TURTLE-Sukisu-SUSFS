@@ -27,12 +27,15 @@ jobs:
         mkdir -p $GITHUB_WORKSPACE/toolchains
         cd $GITHUB_WORKSPACE/toolchains
 
-        # Download langsung tarball biner Clang r563880c (Clang 21) dari AOSP Prebuilts
-        curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz
-        mkdir clang && tar -xf clang-r563880c.tar.gz -C clang
-        rm clang-r563880c.tar.gz
+        # Download Clang r563880c (Clang 21) dari AOSP Prebuilts
+        wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
+        
+        # Ekstrak dengan penanganan archive googlesource
+        mkdir clang
+        tar -xzf clang.tar.gz -C clang || tar -xf clang.tar.gz -C clang
+        rm -f clang.tar.gz
 
-        # Download GCC Cross-Compilers
+        # Download GCC 64-bit & 32-bit Cross-Compilers
         git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android12-release --depth=1 gcc64
         git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android12-release --depth=1 gcc32
 
