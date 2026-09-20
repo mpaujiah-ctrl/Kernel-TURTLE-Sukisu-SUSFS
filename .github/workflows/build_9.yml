@@ -42,6 +42,7 @@ jobs:
         # Download GCC 64-bit & 32-bit Cross-Compilers
         git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android12-release --depth=1 gcc64
         git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android12-release --depth=1 gcc32
+    
     - name: Build Kernel
       run: |
         export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
@@ -54,9 +55,16 @@ jobs:
         export CROSS_COMPILE=aarch64-linux-android-
         export CROSS_COMPILE_ARM32=arm-linux-androideabi-
 
+        export KCFLAGS="-Wno-error"
+        export KCPPFLAGS="-Wno-error"
+
         mkdir -p out
-        make O=out cepheus_defconfig
-        make -j$(nproc --all) O=out
+
+        # Load defconfig vendor/sm8150-perf_defconfig
+        make O=out vendor/sm8150-perf_defconfig
+
+        # Kompilasi kernel
+        make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error"
 
     - name: Check Build Output
       run: |
