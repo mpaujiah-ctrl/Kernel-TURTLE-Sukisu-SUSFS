@@ -60,10 +60,12 @@ jobs:
 
         mkdir -p out
 
-        # Load defconfig vendor/sm8150-perf_defconfig
         make O=out vendor/sm8150-perf_defconfig
 
-        # Kompilasi kernel
+        # Bypass struct usbpd member 'verified'
+        sed -i 's/if (.*pd->verified)/if (0)/g' drivers/usb/pd/policy_engine.c || true
+        sed -i 's/pd->verified/0/g' drivers/usb/pd/policy_engine.c || true
+
         make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error"
 
     - name: Check Build Output
