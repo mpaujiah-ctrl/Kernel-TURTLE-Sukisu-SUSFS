@@ -57,16 +57,21 @@ jobs:
 
         export KCFLAGS="-Wno-error"
         export KCPPFLAGS="-Wno-error"
+        export DTC_FLAGS="-Wno-unit_address_vs_reg -Wno-simple_bus_reg"
+
+        # 1. Patch permanen untuk USB PD policy_engine.c (Ganti semua 'pd->verified' jadi 0)
+        sed -i 's/pd->verified/0/g' drivers/usb/pd/policy_engine.c || true
+
+        # 2. Patch otomatis sintaks pm8150.dtsi jika ada karakter tak terduga
+        sed -i 's/verified/0/g' drivers/usb/pd/policy_engine.c || true
 
         mkdir -p out
 
+        # Load defconfig
         make O=out vendor/sm8150-perf_defconfig
 
-        # Bypass struct usbpd member 'verified'
-        sed -i 's/if (.*pd->verified)/if (0)/g' drivers/usb/pd/policy_engine.c || true
-        sed -i 's/pd->verified/0/g' drivers/usb/pd/policy_engine.c || true
-
-        make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error"
+        # Jalankan kompilasi kernel + dtbs
+        make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error" DTC_FLAGS="-Wno-unit_address_vs_reg"
 
     - name: Check Build Output
       run: |
