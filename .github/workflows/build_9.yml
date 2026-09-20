@@ -72,6 +72,8 @@ jobs:
           echo "IMAGE_TYPE=Image.gz-dtb" >> $GITHUB_ENV
         elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
           echo "IMAGE_TYPE=Image.gz" >> $GITHUB_ENV
+        elif [ -f "out/arch/arm64/boot/Image" ]; then
+          echo "IMAGE_TYPE=Image" >> $GITHUB_ENV
         else
           echo "Kernel image tidak ditemukan! Kompilasi gagal."
           exit 1
@@ -82,14 +84,16 @@ jobs:
         git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AK3
         rm -rf AK3/.git
 
-        # Copy hasil build ke AK3
+        # Copy hasil build sesuai tipe image yang dihasilkan
         if [ -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
           cp out/arch/arm64/boot/Image.gz-dtb AK3/
-        else
+        elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
           cp out/arch/arm64/boot/Image.gz AK3/
+        else
+          cp out/arch/arm64/boot/Image AK3/
         fi
 
-        # Adjust AnyKernel3 config
+        # Sesuaikan device name di anykernel.sh untuk cepheus
         sed -i 's/device.name1=.*/device.name1=cepheus/' AK3/anykernel.sh
 
         cd AK3
