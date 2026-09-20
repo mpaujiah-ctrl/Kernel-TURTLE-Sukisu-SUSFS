@@ -45,6 +45,7 @@ jobs:
     
     - name: Build Kernel
       run: |
+        export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$GITHUB_WORKSPACE/toolchains/gcc64/bin:$GITHUB_WORKSPACE/toolchains/gcc32/bin:$PATH"
         export ARCH=arm64
           
           # Android Clang r563880c
