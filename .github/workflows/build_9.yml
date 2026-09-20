@@ -58,27 +58,26 @@ jobs:
         export KCFLAGS="-Wno-error"
         export KCPPFLAGS="-Wno-error"
 
-        # Fix USB PD Policy Engine
+        # Patch USB PD Policy Engine
         sed -i 's/pd->verifed/0/g' drivers/usb/pd/policy_engine.c || true
         sed -i 's/pd->verified/0/g' drivers/usb/pd/policy_engine.c || true
 
-        # Clean/revert patch salah di apr_elliptic.c jika ada
+        # Revert perubahan manual di apr_elliptic.c
         git checkout -- techpack/audio/dsp/apr_elliptic.c || true
 
-        # Bypass/Skip kompilasi apr_elliptic dari Makefile audio
-        sed -i 's/obj-y += apr_elliptic.o/# obj-y += apr_elliptic.o/g' techpack/audio/dsp/Makefile || true
-        sed -i 's/obj-$(CONFIG_MSM_MBOX) += apr_elliptic.o/# /g' techpack/audio/dsp/Makefile || true
+        # Lewati penyusunan file apr_elliptic.o di level Makefile audio
+        sed -i 's/apr_elliptic.o//g' techpack/audio/dsp/Makefile || true
 
         mkdir -p out
 
         # Load defconfig vendor
         make O=out vendor/sm8150-perf_defconfig
 
-        # Matikan config driver elliptic audio & dtbo ekstra
+        # Nonaktifkan config driver audio elliptic & kamera spectra eksternal
         ./scripts/config --file out/.config --disable CONFIG_AUDIO_ELLIPTIC
         ./scripts/config --file out/.config --disable CONFIG_SPECTRA_CAMERA
 
-        # Build spesifik target Image.gz-dtb
+        # Kompilasi khusus target Image.gz-dtb
         make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error" Image.gz-dtb || \
         make -j$(nproc --all) O=out KCFLAGS="-Wno-error" KCPPFLAGS="-Wno-error" Image.gz
 
