@@ -59,6 +59,13 @@ jobs:
           make O=out ARCH=arm64 olddefconfig
           grep -E "^CONFIG_(KSU|KSU_MANUAL_HOOK|KSU_SUSFS|INITRAMFS_IGNORE_SKIP_FLAG|EROFS_FS|QCA_CLD_WLAN|LTO_NONE)=|^CONFIG_CMDLINE=" out/.config
     
+      - name: Update localversion
+        working-directory: kernel
+        run: |
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-DRAGON"/' out/.config
+          grep "CONFIG_LOCALVERSION" out/.config
+          
+      
       - name: Install toolchain (Clang 21 / r563880c - PERSIS sama kayak kernel yang lagi jalan di device)
         run: |
           sudo apt update
