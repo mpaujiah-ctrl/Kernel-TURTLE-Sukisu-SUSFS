@@ -115,16 +115,19 @@ jobs:
           export ARCH=arm64
           mkdir -p out
           scripts/kconfig/merge_config.sh -O out \
-            "${{ env.BASE_DEFCONFIG }}" \
-            "${{ env.DEVICE_FRAGMENT }}" \
-            ksu_susfs_extra.config
+            arch/arm64/configs/vendor/sm8150-perf_defconfig \
+            arch/arm64/configs/vendor/xiaomi/sm8150-common.config \
+            arch/arm64/configs/vendor/xiaomi/cepheus.config
+          make O=out ARCH=arm64 olddefconfig
+          
           echo "=== Cek hasil merge ==="
           grep "CONFIG_KSU\|CONFIG_MACH_XIAOMI_CEPHEUS\|CONFIG_ARM64=y\|CONFIG_NR_CPUS" out/.config
+          grep -E "^CONFIG_(KSU|KSU_MANUAL_HOOK|KSU_SUSFS|INITRAMFS_IGNORE_SKIP_FLAG|EROFS_FS|QCA_CLD_WLAN|LTO_NONE)=|^CONFIG_CMDLINE=" out/.config
 
       - name: Update localversion
         working-directory: kernel
         run: |
-          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-JLSukiSUSFS"/' out/.config
+          sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-DRAGON"/' out/.config
           grep "CONFIG_LOCALVERSION" out/.config
 
       - name: Install toolchain (Clang 21 / r563880c - PERSIS sama kayak kernel yang lagi jalan di device)
