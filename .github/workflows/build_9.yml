@@ -17,13 +17,9 @@ jobs:
       - name: Checkout repo sendiri
         uses: actions/checkout@v4
 
-      - name: Clone kernel source (commit persis kernel yang jalan)
+      - name: Clone kernel source (JoK3rLeE, ikut update branch)
         run: |
-          git init kernel
-          cd kernel
-          git remote add origin "${{ env.KERNEL_SOURCE }}"
-          git fetch --depth=1 origin 683b437c39781770eeb9e916ee365848e73ae6a1
-          git checkout FETCH_HEAD
+          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_SOURCE }}" kernel
       
       - name: Fix dma-mapping.c unused-function (bug upstream, forward decl nyangkut)
         working-directory: kernel
