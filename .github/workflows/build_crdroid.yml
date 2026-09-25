@@ -20,22 +20,22 @@ jobs:
       - name: Clone kernel source (raystef66)
         run: |
           git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_SOURCE }}" kernel
-
+     
       - name: Deteksi KERNEL_VERSION dari Makefile
         working-directory: kernel
         run: |
           KV=$(head -n 3 Makefile | grep -E 'VERSION|PATCHLEVEL' | awk '{print $3}' | paste -sd '.')
           echo "KERNEL_VERSION=$KV" >> "$GITHUB_ENV"
           echo "[+] Terdeteksi kernel version: $KV"
-
-      - name: Bersihin hook lama (clean_hook.sh) - biar idempotent kalau di-rerun
+      
+      - name: Bersihin hook lama (clean_hook_2.sh) - biar idempotent kalau di-rerun
         working-directory: kernel
         run: |
-          cp ../clean_hook.sh ./
-          bash clean_hook.sh
+          cp ../clean_hook_2.sh ./
+          bash clean_hook_2.sh
           echo "=== Sisa referensi CONFIG_KSU / CONFIG_KSU_SUSFS (harus kosong) ==="
           grep -rl "CONFIG_KSU" fs/ kernel/ security/ 2>/dev/null || echo "bersih"
-
+      
       - name: Integrasi SukiSU-Ultra (dari fork sendiri)
         working-directory: kernel
         run: |
@@ -46,7 +46,7 @@ jobs:
           echo "=== Verifikasi ==="
           ls -la drivers/kernelsu
           grep -i "kernelsu" drivers/Makefile drivers/Kconfig
-
+      
       - name: Patch kernel_umount.c missing set handler (bug upstream)
         working-directory: kernel
         run: |
@@ -56,10 +56,10 @@ jobs:
       - name: Patch SukiSU-Ultra Fixed (compat non-static-key, dsb)
         working-directory: kernel
         run: |
-          cp ../sukisu_ultra_fixed.patch ./
-          patch -p1 < sukisu_ultra_fixed.patch || true
+          cp ../sukisu_ultra_fixed_2.patch ./
+          patch -p1 < sukisu_ultra_fixed_2.patch || true
           echo "[+] SukiSU-Ultra Fixed applied (cek .rej kalau ada di bawah)."
-
+      
       - name: Patch event.c strncpy compat (upstream naming berubah)
         working-directory: kernel
         run: |
@@ -81,7 +81,7 @@ jobs:
           grep -q "^CONFIG_KALLSYMS=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS=y" >> "$DEFCONFIG"
           grep -q "^CONFIG_KALLSYMS_ALL=y" "$DEFCONFIG" || echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG"
           grep "CONFIG_K" "$DEFCONFIG"
-
+      
       - name: Clean reboot.c syntax and fix KSU
         working-directory: kernel
         run: |
@@ -114,7 +114,7 @@ jobs:
             echo "[+] Backport set_memory.h selesai (cek .rej kalau gagal)."
           fi
           echo "CONFIG_KPM=y" >> "$DEFCONFIG"
-
+      
       - name: SUSFS - cek udah dipatch belum, apply kalau belum
         working-directory: kernel
         run: |
@@ -131,7 +131,7 @@ jobs:
             patch -p1 --fuzz=0 < "$(basename "$PATCH_FILE")" 2>&1 | tee ../susfs_patch_log.txt
             echo "[+] SUSFS patch selesai diproses - cek susfs_patch_log.txt & .rej kalau ada hunk gagal."
           fi
-
+      
       - name: Set config SUSFS
         working-directory: kernel
         run: |
@@ -154,7 +154,7 @@ jobs:
           fi
           echo "=== Isi defconfig terkait KSU/SUSFS ==="
           grep "CONFIG_KSU" "$DEFCONFIG"
-
+      
       - name: Terapkan fixup hunk SUSFS yang gagal
         working-directory: kernel
         run: |
@@ -172,20 +172,20 @@ jobs:
           if [ "$COUNT" -gt 0 ]; then
             echo "::warning::Ada $COUNT hunk yang gagal di-apply, cek artifact rej-files"
           fi
-
+      
       - name: Update localversion
         working-directory: kernel
         run: |
           DEFCONFIG="arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}"
           sed -i 's/CONFIG_LOCALVERSION=".*"/CONFIG_LOCALVERSION="-Quick"/' "$DEFCONFIG"
           grep "CONFIG_LOCALVERSION" "$DEFCONFIG"
-
+      
       - name: Install toolchain
         run: |
           sudo apt update
           sudo apt install -y clang lld llvm bc bison flex libssl-dev libelf-dev build-essential
           sudo apt install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
-
+      
       - name: Clone AnyKernel3
         run: git clone --depth=1 https://github.com/osm0sis/AnyKernel3
 
@@ -195,12 +195,10 @@ jobs:
           cat > scripts/dtc/yamltree.c << 'CEOF'
           #include <stdio.h>
           #include <stdlib.h>
-
           struct dt_info;
-
           void dt_to_yaml(FILE *outf, struct dt_info *dti) {}
           CEOF
-
+      
       - name: Build kernel
         working-directory: kernel
         run: |
@@ -214,21 +212,19 @@ jobs:
           export OBJDUMP=llvm-objdump
           export STRIP=llvm-strip
           export CROSS_COMPILE=aarch64-linux-gnu-
-
           make O=out ARCH=arm64 "${{ env.DEFCONFIG_NAME }}"
           make ARCH=arm64 O=out CC=clang AR=llvm-ar LD=ld.lld \
                NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
                -j"$(nproc --all)" Image.gz-dtb
-
           ls out/arch/arm64/boot/Image.gz-dtb
           ls out/arch/arm64/boot/Image
-
+      
       - name: Pack AnyKernel3
         run: |
           cp kernel/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cp kernel/out/arch/arm64/boot/Image kernel-pure.img
           cd AnyKernel3 && zip -r9 ../cepheus_Quick.zip * -x README
-
+      
       - name: Upload hasil build
         uses: actions/upload-artifact@v4
         with:
@@ -237,7 +233,7 @@ jobs:
             cepheus_Quick.zip
             kernel/out/arch/arm64/boot/Image.gz-dtb
             kernel-pure.img
-
+      
       - name: Upload .rej files (kalau ada patch yang gagal)
         if: always()
         uses: actions/upload-artifact@v4
