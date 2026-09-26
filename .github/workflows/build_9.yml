@@ -104,6 +104,16 @@ jobs:
           void dt_to_yaml(FILE *outf, struct dt_info *dti) {}
           CEOF
 
+      - name: Ganti ke ThinLTO
+        working-directory: kernel
+        run: |
+            scripts/config --file out/.config \
+              -d LTO_NONE \
+              -d LTO_CLANG \
+              -e THINLTO
+            make O=out ARCH=arm64 olddefconfig
+            grep -E "^CONFIG_(LTO|THINLTO)" out/.config
+      
       - name: Build kernel
         working-directory: kernel
         run: |
